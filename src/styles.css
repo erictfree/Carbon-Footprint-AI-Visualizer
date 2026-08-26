@@ -71,9 +71,18 @@ a:focus-visible {
 
 .scene-sky {
   background:
-    radial-gradient(circle at 68% 28%, rgba(41, 163, 167, 0.19), transparent 35%),
-    radial-gradient(circle at 48% 72%, rgba(20, 70, 78, 0.5), transparent 36%),
+    radial-gradient(ellipse at 70% 42%, rgba(47, 179, 180, 0.22), transparent 31%),
+    radial-gradient(ellipse at 54% 75%, rgba(20, 85, 91, 0.5), transparent 38%),
     linear-gradient(155deg, #0a1d29 0%, #07131d 48%, #040b11 100%);
+}
+
+.scene-sky::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(180deg, transparent 34%, rgba(90, 222, 218, 0.055) 49%, transparent 63%),
+    radial-gradient(ellipse at 72% 52%, rgba(97, 235, 229, 0.08), transparent 42%);
 }
 
 .scene-canvas canvas {
@@ -750,6 +759,7 @@ input[type="range"] {
 }
 
 .scene-label {
+  --path-color: var(--cyan);
   position: absolute;
   z-index: 5;
   right: 5vw;
@@ -759,10 +769,21 @@ input[type="range"] {
   gap: 2px 8px;
   min-width: 150px;
   padding: 9px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--path-color) 26%, transparent);
   border-radius: 9px;
   background: rgba(5, 15, 22, 0.66);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2), inset 2px 0 0 color-mix(in srgb, var(--path-color) 74%, transparent);
   backdrop-filter: blur(10px);
+}
+
+.scene-label::after {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  width: clamp(36px, 5vw, 88px);
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--path-color) 58%, transparent));
 }
 
 .scene-label--ai {
