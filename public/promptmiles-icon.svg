@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PromptMiles">
+  <rect width="512" height="512" rx="116" fill="#07131d"/>
+  <path d="M76 334c78-8 110-92 184-96 70-4 89 79 176 56" fill="none" stroke="#39d7d0" stroke-width="26" stroke-linecap="round"/>
+  <path d="M132 282h212l34 46v54H106v-54l26-46Z" fill="#e8f3f3"/>
+  <path d="m178 282 34-58h90l42 58" fill="#91a9b3"/>
+  <circle cx="166" cy="382" r="34" fill="#07131d" stroke="#e8f3f3" stroke-width="14"/>
+  <circle cx="326" cy="382" r="34" fill="#07131d" stroke="#e8f3f3" stroke-width="14"/>
+  <path d="M107 328h49" stroke="#ffb055" stroke-width="17" stroke-linecap="round"/>
+</svg>
