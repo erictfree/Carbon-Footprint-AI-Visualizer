@@ -64,6 +64,10 @@ app.innerHTML = `
         <span>Starting from</span>
         <strong id="scene-origin">Austin, TX</strong>
       </div>
+      <div class="scene-stage">
+        <span>Distance staging</span>
+        <strong id="scene-stage">Regional scale</strong>
+      </div>
       <div class="scene-label scene-label--ai">
         <span class="scene-label__dot"></span>
         <span>AI path</span>
@@ -74,7 +78,11 @@ app.innerHTML = `
         <span id="scene-life-label">Lifestyle total</span>
         <strong id="scene-life-distance">—</strong>
       </div>
-      <p class="scene-hint">Drag to orbit · scroll to zoom</p>
+      <div class="scene-cinematic-status" aria-live="polite">
+        <span></span>
+        <strong>Translating energy into road</strong>
+      </div>
+      <p class="scene-hint">Drag to orbit · R replay · H HUD · F fullscreen</p>
     </section>
 
     <header class="topbar">
@@ -83,7 +91,10 @@ app.innerHTML = `
         <span>PromptMiles</span>
       </a>
       <p class="topbar__dek">AI energy, translated into road.</p>
-      <button class="text-button" id="methodology-open" type="button">Methodology</button>
+      <div class="topbar__actions">
+        <button class="text-button" id="replay-cinematic" type="button"><span id="replay-label">Replay</span> <kbd>R</kbd></button>
+        <button class="text-button" id="methodology-open" type="button">Methodology</button>
+      </div>
     </header>
 
     <aside class="hud" aria-label="PromptMiles controls and results">
@@ -306,7 +317,11 @@ const IMPACT_COLORS: Record<LifestyleMetricId, number> = {
 };
 
 const { PromptMilesScene } = await import('./scene/PromptMilesScene');
-const scene = new PromptMilesScene(byId('scene-canvas'));
+const appShell = document.querySelector<HTMLElement>('.app-shell');
+if (!appShell) throw new Error('PromptMiles could not find its application shell.');
+const sceneCanvas = byId('scene-canvas');
+const scene = new PromptMilesScene(sceneCanvas);
+const replayButton = byId<HTMLButtonElement>('replay-cinematic');
 const csvInput = byId<HTMLInputElement>('csv-input');
 const dietSelect = byId<HTMLSelectElement>('diet-select');
 const homeSelect = byId<HTMLSelectElement>('home-select');
@@ -435,6 +450,7 @@ function renderSelectedComparison(state: AppState): void {
     button.setAttribute('aria-pressed', String(selected));
   });
   scene.setDistances(state.result.aiMiles.central, impact.miles, IMPACT_COLORS[activeComparison]);
+  byId('scene-stage').textContent = scene.distanceStageLabel;
 }
 
 function renderImpactCards(state: AppState): void {
@@ -575,7 +591,48 @@ byId('download-synthetic').addEventListener('click', () => {
   link.click();
   URL.revokeObjectURL(url);
 });
+replayButton.addEventListener('click', () => scene.replay());
+sceneCanvas.addEventListener('promptmiles:cinematicstart', () => {
+  appShell.classList.add('is-cinematic');
+  appShell.classList.remove('is-cinematic-revealing');
+  replayButton.disabled = true;
+  byId('replay-label').textContent = 'Replaying';
+});
+sceneCanvas.addEventListener('promptmiles:cinematicreveal', () => {
+  appShell.classList.add('is-cinematic-revealing');
+});
+sceneCanvas.addEventListener('promptmiles:cinematicend', () => {
+  appShell.classList.remove('is-cinematic', 'is-cinematic-revealing');
+  replayButton.disabled = false;
+  byId('replay-label').textContent = 'Replay';
+});
 byId('methodology-open').addEventListener('click', () => methodology.showModal());
+
+window.addEventListener('keydown', (event) => {
+  const target = event.target;
+  const isEditing = target instanceof HTMLElement
+    && target.matches('input, select, textarea, [contenteditable="true"]');
+  if (isEditing || event.metaKey || event.ctrlKey || event.altKey) return;
+
+  switch (event.key.toLowerCase()) {
+    case 'h':
+      appShell.classList.toggle('hud-hidden');
+      break;
+    case 'r':
+      scene.replay();
+      break;
+    case 'f': {
+      const fullscreen = document.fullscreenElement
+        ? document.exitFullscreen()
+        : appShell.requestFullscreen();
+      void fullscreen.catch(() => undefined);
+      break;
+    }
+    default:
+      return;
+  }
+  event.preventDefault();
+});
 
 function closeMapping(): void {
   pendingFile = null;

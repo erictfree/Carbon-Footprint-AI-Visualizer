@@ -2,10 +2,13 @@
 
 PromptMiles translates estimated AI energy into the distance a 2024 Tesla Model 3 could travel, then puts that distance beside lifestyle comparisons expressed in the same unit.
 
-This repository currently contains the M2 profile-and-HUD checkpoint:
+This repository currently contains the M3 cinematic checkpoint:
 
 - Vite + vanilla TypeScript application shell
 - Licensed 2024 Model 3 GLB with a procedural fallback and dual-path Three.js scene
+- Nine-second first-load/replay cinematic with car roll-in, headlights, route ignition, and camera pullback
+- Driveway, neighborhood, regional, and continental camera staging based on the selected distances
+- Smooth live route resizing plus Replay, HUD, and fullscreen keyboard controls
 - Browser-local CSV ingestion and aggregation with PapaParse
 - Four seeded synthetic scenarios spanning light chat, typical use, agent-heavy use, and unknown-model fallback
 - Complete nine-model Masley / EcoLogits v0.10 factor snapshot with uncertainty ranges

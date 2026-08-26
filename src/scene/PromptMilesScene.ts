@@ -10,6 +10,64 @@ const PRODUCTION_CAR_URL = new URL(
 const PATH_ORIGIN_X = 1.45;
 const CAR_LENGTH = 4.45;
 const ROUTE_SEGMENTS = 96;
+const ROUTE_TWEEN_MS = 620;
+const CINEMATIC_DURATION_MS = 9_000;
+
+type DistanceStageId = 'driveway' | 'neighborhood' | 'regional' | 'continental';
+
+interface DistanceStage {
+  id: DistanceStageId;
+  label: string;
+  camera: [number, number, number];
+  target: [number, number, number];
+}
+
+interface CameraTransition {
+  startedAt: number;
+  fromCamera: THREE.Vector3;
+  fromTarget: THREE.Vector3;
+  toCamera: THREE.Vector3;
+  toTarget: THREE.Vector3;
+}
+
+const DISTANCE_STAGES: Record<DistanceStageId, DistanceStage> = {
+  driveway: {
+    id: 'driveway',
+    label: 'Driveway scale',
+    camera: [4.25, 1.8, 4.4],
+    target: [0.6, 0.58, 0],
+  },
+  neighborhood: {
+    id: 'neighborhood',
+    label: 'Neighborhood scale',
+    camera: [6.15, 3.05, 6.9],
+    target: [1.25, 0.68, 0],
+  },
+  regional: {
+    id: 'regional',
+    label: 'Regional scale',
+    camera: [7.65, 4.25, 8.85],
+    target: [1.55, 0.78, 0],
+  },
+  continental: {
+    id: 'continental',
+    label: 'Continental scale',
+    camera: [8.75, 6.6, 13.7],
+    target: [2, 0.72, 0],
+  },
+};
+
+export function distanceStageForMiles(miles: number): DistanceStage {
+  if (miles < 10 / 5_280) return DISTANCE_STAGES.driveway;
+  if (miles < 2) return DISTANCE_STAGES.neighborhood;
+  if (miles < 50) return DISTANCE_STAGES.regional;
+  return DISTANCE_STAGES.continental;
+}
+
+function eased(progress: number): number {
+  const value = THREE.MathUtils.clamp(progress, 0, 1);
+  return value * value * (3 - 2 * value);
+}
 
 function createFallbackCar(): THREE.Group {
   const car = new THREE.Group();
@@ -193,13 +251,24 @@ export class PromptMilesScene {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly car = new THREE.Group();
+  private readonly carModel = new THREE.Group();
   private readonly fallbackCar = createFallbackCar();
+  private readonly headlights: THREE.SpotLight[] = [];
   private readonly stars = createStars();
   private readonly distanceField = createDistanceField();
   private readonly timer = new THREE.Timer();
   private readonly resizeObserver: ResizeObserver;
   private readonly pathGroup = new THREE.Group();
+  private readonly cinematicCameraStart = new THREE.Vector3(PATH_ORIGIN_X + 2.35, 1.45, 3.15);
+  private readonly cinematicTargetStart = new THREE.Vector3(PATH_ORIGIN_X - 1.25, 0.68, 0);
   private environmentTexture: THREE.Texture | null = null;
+  private currentStage = DISTANCE_STAGES.regional;
+  private cameraTransition: CameraTransition | null = null;
+  private cinematicStartedAt: number | null = null;
+  private cinematicLabelsRevealed = false;
+  private routesReady = false;
+  private carAssetReady = false;
+  private hasAutoPlayed = false;
   private frame = 0;
   private disposed = false;
 
@@ -223,7 +292,7 @@ export class PromptMilesScene {
     pmremGenerator.dispose();
 
     this.scene.fog = new THREE.FogExp2(0x07131d, 0.025);
-    this.camera.position.set(7.65, 4.25, 8.85);
+    this.camera.position.fromArray(this.currentStage.camera);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -233,7 +302,7 @@ export class PromptMilesScene {
     this.controls.maxDistance = 30;
     this.controls.minPolarAngle = 0.35;
     this.controls.maxPolarAngle = Math.PI / 2.08;
-    this.controls.target.set(0.85, 0.78, 0);
+    this.controls.target.fromArray(this.currentStage.target);
 
     const hemi = new THREE.HemisphereLight(0x9fe8ff, 0x101719, 2.5);
     this.scene.add(hemi);
@@ -269,20 +338,43 @@ export class PromptMilesScene {
     this.scene.add(grid);
 
     this.car.name = '2024 Tesla Model 3';
+    this.carModel.name = 'Vehicle asset';
     // Keep the car's nose connected to the paths while clearing the left-side HUD.
     this.car.position.set(PATH_ORIGIN_X - CAR_LENGTH / 2, 0, 0);
     this.fallbackCar.visible = false;
-    this.car.add(this.fallbackCar);
+    this.carModel.add(this.fallbackCar);
+    this.car.add(this.carModel);
+    this.addHeadlights();
     this.container.dataset.carAsset = 'loading';
+    this.container.dataset.cinematic = 'idle';
+    this.container.dataset.distanceStage = this.currentStage.id;
 
     this.scene.add(this.stars, this.distanceField, this.car, this.pathGroup);
     this.loadProductionCar();
-    this.setDistances(0.4, 650);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
     this.resize();
     this.animate();
+  }
+
+  private addHeadlights(): void {
+    for (const z of [-0.58, 0.58]) {
+      const target = new THREE.Object3D();
+      target.position.set(7.2, 0.16, z);
+      const light = new THREE.SpotLight(0xd9ffff, 18, 15, Math.PI / 9, 0.58, 1.45);
+      light.position.set(2.02, 0.82, z);
+      light.target = target;
+      light.castShadow = false;
+      this.car.add(light, target);
+      this.headlights.push(light);
+    }
+  }
+
+  private maybeAutoReplay(): void {
+    if (this.hasAutoPlayed || !this.carAssetReady || !this.routesReady) return;
+    this.hasAutoPlayed = true;
+    requestAnimationFrame(() => this.replay());
   }
 
   private loadProductionCar(): void {
@@ -330,45 +422,88 @@ export class PromptMilesScene {
           }
         });
 
-        for (const child of [...this.car.children]) {
+        for (const child of [...this.carModel.children]) {
           disposeObject(child);
-          this.car.remove(child);
+          this.carModel.remove(child);
         }
-        this.car.add(model);
+        this.carModel.add(model);
+        this.carAssetReady = true;
         this.container.dataset.carAsset = 'loaded';
+        this.maybeAutoReplay();
       },
       undefined,
       () => {
         if (this.disposed) return;
         this.fallbackCar.visible = true;
+        this.carAssetReady = true;
         this.container.dataset.carAsset = 'fallback';
+        this.maybeAutoReplay();
       },
     );
   }
 
   setDistances(aiMiles: number, lifestyleMiles: number, lifestyleColor = 0xffa856): void {
+    const previousLengths = this.pathGroup.children.map((route) => (
+      Number(route.userData.visualLength ?? 0) * route.scale.x
+    ));
     for (const child of [...this.pathGroup.children]) {
       disposeObject(child);
       this.pathGroup.remove(child);
     }
 
-    if (aiMiles > 0) this.pathGroup.add(this.createRoute(aiMiles, -0.52, 0x42e8df, 0.5));
-    if (lifestyleMiles > 0) {
-      this.pathGroup.add(this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44));
+    const addRoute = (route: THREE.Group, previousLength: number | undefined) => {
+      const nextLength = Number(route.userData.visualLength);
+      const startingLength = previousLength ?? (previousLengths.length > 0 ? nextLength * 0.01 : undefined);
+      if (startingLength && nextLength > 0 && this.cinematicStartedAt === null) {
+        route.scale.x = THREE.MathUtils.clamp(startingLength / nextLength, 0.01, 4.5);
+        route.userData.scaleTween = {
+          from: route.scale.x,
+          startedAt: performance.now(),
+        };
+      }
+      this.setRouteReveal(route, this.cinematicStartedAt === null ? 1 : 0);
+      this.pathGroup.add(route);
+    };
+
+    let routeIndex = 0;
+    if (aiMiles > 0) {
+      addRoute(this.createRoute(aiMiles, -0.52, 0x42e8df, 0.5), previousLengths[routeIndex]);
+      routeIndex += 1;
     }
+    if (lifestyleMiles > 0) {
+      addRoute(this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44), previousLengths[routeIndex]);
+    }
+
+    const nextStage = distanceStageForMiles(Math.max(aiMiles, lifestyleMiles));
+    const stageChanged = nextStage.id !== this.currentStage.id;
+    const hadRoutes = this.routesReady;
+    this.currentStage = nextStage;
+    this.container.dataset.distanceStage = nextStage.id;
+    this.routesReady = this.pathGroup.children.length > 0;
+
+    if (stageChanged && this.cinematicStartedAt === null) {
+      if (hadRoutes) this.beginCameraTransition(performance.now());
+      else this.applyStageCamera();
+    }
+    this.maybeAutoReplay();
+  }
+
+  get distanceStageLabel(): string {
+    return this.currentStage.label;
   }
 
   private createRoute(miles: number, lane: number, color: number, width: number): THREE.Group {
     const length = visualLength(miles);
     const points = [
-      new THREE.Vector3(PATH_ORIGIN_X, 0.13, lane),
-      new THREE.Vector3(PATH_ORIGIN_X + length * 0.22, 0.16, lane * 1.1),
-      new THREE.Vector3(PATH_ORIGIN_X + length * 0.52, 0.2 + Math.min(length / 90, 0.18), lane * 1.8),
-      new THREE.Vector3(PATH_ORIGIN_X + length, 0.26 + Math.min(length / 55, 0.38), lane * 2.4),
+      new THREE.Vector3(0, 0.13, lane),
+      new THREE.Vector3(length * 0.22, 0.16, lane * 1.1),
+      new THREE.Vector3(length * 0.52, 0.2 + Math.min(length / 90, 0.18), lane * 1.8),
+      new THREE.Vector3(length, 0.26 + Math.min(length / 55, 0.38), lane * 2.4),
     ];
     const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.45);
     const route = new THREE.Group();
     route.name = `${miles.toFixed(1)} mile route`;
+    route.position.x = PATH_ORIGIN_X;
 
     const auraMaterial = new THREE.MeshBasicMaterial({
       color,
@@ -411,6 +546,7 @@ export class PromptMilesScene {
       const dash = new THREE.Mesh(dashGeometry, markerMaterial);
       dash.position.set(point.x, 0.096, point.z);
       dash.rotation.y = -Math.atan2(tangent.z, tangent.x);
+      dash.userData.routeProgress = progress;
       route.add(dash);
     }
 
@@ -427,6 +563,7 @@ export class PromptMilesScene {
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.14, 28), ringMaterial);
       ring.position.set(point.x, 0.11, point.z);
       ring.rotation.x = -Math.PI / 2;
+      ring.userData.routeProgress = progress;
       route.add(ring);
     });
 
@@ -434,19 +571,149 @@ export class PromptMilesScene {
     const endpointRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.31, 40), ringMaterial);
     endpointRing.position.set(endpoint.x, 0.105, endpoint.z);
     endpointRing.rotation.x = -Math.PI / 2;
+    endpointRing.userData.routeProgress = 0.97;
     route.add(endpointRing);
 
     const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.05, 0.75, 16), markerMaterial);
     beacon.position.set(endpoint.x, 0.45, endpoint.z);
+    beacon.userData.routeProgress = 0.99;
     route.add(beacon);
 
     const beaconLight = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 14), markerMaterial);
     beaconLight.position.set(endpoint.x, 0.86, endpoint.z);
+    beaconLight.userData.routeProgress = 1;
     route.add(beaconLight);
 
     route.userData.auraMaterial = auraMaterial;
     route.userData.markerMaterial = markerMaterial;
+    route.userData.revealMeshes = [aura, road];
+    route.userData.visualLength = length;
     return route;
+  }
+
+  private setRouteReveal(route: THREE.Object3D, progress: number): void {
+    const reveal = THREE.MathUtils.clamp(progress, 0, 1);
+    const revealMeshes = route.userData.revealMeshes as THREE.Mesh[] | undefined;
+    revealMeshes?.forEach((mesh) => {
+      const available = mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count;
+      const drawCount = Math.floor((available * reveal) / 6) * 6;
+      mesh.geometry.setDrawRange(0, Math.min(available, drawCount));
+    });
+    route.children.forEach((child) => {
+      const markerProgress = child.userData.routeProgress as number | undefined;
+      if (markerProgress !== undefined) child.visible = reveal >= markerProgress;
+    });
+    route.userData.reveal = reveal;
+  }
+
+  private applyStageCamera(): void {
+    this.camera.position.fromArray(this.currentStage.camera);
+    this.controls.target.fromArray(this.currentStage.target);
+    this.controls.update();
+  }
+
+  private beginCameraTransition(startedAt: number): void {
+    this.cameraTransition = {
+      startedAt,
+      fromCamera: this.camera.position.clone(),
+      fromTarget: this.controls.target.clone(),
+      toCamera: new THREE.Vector3().fromArray(this.currentStage.camera),
+      toTarget: new THREE.Vector3().fromArray(this.currentStage.target),
+    };
+  }
+
+  private updateTransitions(timestamp: number): void {
+    this.pathGroup.children.forEach((route) => {
+      const tween = route.userData.scaleTween as { from: number; startedAt: number } | undefined;
+      if (!tween) return;
+      const progress = eased((timestamp - tween.startedAt) / ROUTE_TWEEN_MS);
+      route.scale.x = THREE.MathUtils.lerp(tween.from, 1, progress);
+      if (progress >= 1) delete route.userData.scaleTween;
+    });
+
+    if (!this.cameraTransition || this.cinematicStartedAt !== null) return;
+    const progress = eased((timestamp - this.cameraTransition.startedAt) / ROUTE_TWEEN_MS);
+    this.camera.position.lerpVectors(
+      this.cameraTransition.fromCamera,
+      this.cameraTransition.toCamera,
+      progress,
+    );
+    this.controls.target.lerpVectors(
+      this.cameraTransition.fromTarget,
+      this.cameraTransition.toTarget,
+      progress,
+    );
+    if (progress >= 1) this.cameraTransition = null;
+  }
+
+  replay(): void {
+    if (!this.routesReady || this.disposed) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.finishCinematic();
+      return;
+    }
+
+    this.cinematicStartedAt = performance.now();
+    this.cinematicLabelsRevealed = false;
+    this.cameraTransition = null;
+    this.controls.enabled = false;
+    this.camera.position.copy(this.cinematicCameraStart);
+    this.controls.target.copy(this.cinematicTargetStart);
+    this.car.position.x = PATH_ORIGIN_X - CAR_LENGTH / 2 - 0.9;
+    this.headlights.forEach((light) => { light.intensity = 0; });
+    this.pathGroup.children.forEach((route) => {
+      route.scale.x = 1;
+      delete route.userData.scaleTween;
+      this.setRouteReveal(route, 0);
+    });
+    this.container.dataset.cinematic = 'true';
+    this.container.dispatchEvent(new CustomEvent('promptmiles:cinematicstart', { bubbles: true }));
+  }
+
+  private finishCinematic(): void {
+    this.cinematicStartedAt = null;
+    this.cinematicLabelsRevealed = false;
+    this.car.position.x = PATH_ORIGIN_X - CAR_LENGTH / 2;
+    this.pathGroup.children.forEach((route) => this.setRouteReveal(route, 1));
+    this.headlights.forEach((light) => { light.intensity = 18; });
+    this.applyStageCamera();
+    this.controls.enabled = true;
+    this.container.dataset.cinematic = 'idle';
+    this.container.dispatchEvent(new CustomEvent('promptmiles:cinematicend', { bubbles: true }));
+  }
+
+  private updateCinematic(timestamp: number): void {
+    if (this.cinematicStartedAt === null) return;
+    const elapsed = timestamp - this.cinematicStartedAt;
+    const cameraProgress = eased((elapsed - 850) / 6_900);
+    const settledCamera = new THREE.Vector3().fromArray(this.currentStage.camera);
+    const settledTarget = new THREE.Vector3().fromArray(this.currentStage.target);
+    this.camera.position.lerpVectors(this.cinematicCameraStart, settledCamera, cameraProgress);
+    this.controls.target.lerpVectors(this.cinematicTargetStart, settledTarget, cameraProgress);
+
+    const carProgress = eased((elapsed - 250) / 3_450);
+    this.car.position.x = PATH_ORIGIN_X - CAR_LENGTH / 2 - (1 - carProgress) * 0.9;
+
+    const ignition = eased((elapsed - 250) / 900);
+    const settle = eased((elapsed - 4_800) / 2_400);
+    const headlightIntensity = THREE.MathUtils.lerp(0, 135, ignition);
+    this.headlights.forEach((light) => {
+      light.intensity = THREE.MathUtils.lerp(headlightIntensity, 18, settle);
+    });
+
+    this.pathGroup.children.forEach((route, index) => {
+      const revealStart = index === 0 ? 900 : 1_450;
+      const revealDuration = index === 0 ? 2_900 : 4_250;
+      this.setRouteReveal(route, eased((elapsed - revealStart) / revealDuration));
+    });
+
+    if (!this.cinematicLabelsRevealed && elapsed >= 6_450) {
+      this.cinematicLabelsRevealed = true;
+      this.container.dataset.cinematic = 'settling';
+      this.container.dispatchEvent(new CustomEvent('promptmiles:cinematicreveal', { bubbles: true }));
+    }
+
+    if (elapsed >= CINEMATIC_DURATION_MS) this.finishCinematic();
   }
 
   private resize(): void {
@@ -461,9 +728,17 @@ export class PromptMilesScene {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.animate);
     this.timer.update(timestamp);
+    const frameTime = timestamp ?? performance.now();
     const elapsed = this.timer.getElapsed();
+    this.updateTransitions(frameTime);
+    this.updateCinematic(frameTime);
     this.car.position.y = Math.sin(elapsed * 0.7) * 0.008;
     this.stars.rotation.y = elapsed * 0.0025;
+    if (this.cinematicStartedAt === null) {
+      this.headlights.forEach((light, index) => {
+        light.intensity = 18 + Math.sin(elapsed * 1.15 + index * 0.7) * 2.2;
+      });
+    }
     this.pathGroup.children.forEach((route, index) => {
       const aura = route.userData.auraMaterial as THREE.MeshBasicMaterial | undefined;
       const markers = route.userData.markerMaterial as THREE.MeshStandardMaterial | undefined;
