@@ -36,6 +36,12 @@ import type {
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('PromptMiles could not find its app root.');
 
+const CAR_ASSET_SOURCE = {
+  label: '2024 Tesla Model 3 by RBLXSupercars, shared by brandonleong28',
+  url: 'https://sketchfab.com/3d-models/tesla-model-3-2024-36c52f3f89f6439c90310f14e8ff33f2',
+  licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+} as const;
+
 const restored = loadSnapshot(window.localStorage);
 const initialProfile = restored?.profile ?? DEFAULT_PROFILE;
 const initialAggregate = restored?.aggregate ?? null;
@@ -238,11 +244,14 @@ app.innerHTML = `
         <div><dt>Home</dt><dd>1.5 / 3.5 / 7 t CO₂e/year for a small apartment through a large house.</dd></div>
         <div><dt>Window</dt><dd>AI and lifestyle values are both normalized to the CSV span, 7 days, or 30 days.</dd></div>
         <div><dt>Conversion</dt><dd>kg CO₂e → selected grid-equivalent kWh → selected Model 3 mi/kWh.</dd></div>
+        <div><dt>3D asset</dt><dd>${CAR_ASSET_SOURCE.label}; rescaled and material-tuned for PromptMiles under CC BY 4.0.</dd></div>
         <div><dt>Excluded</dt><dd>Water, regional goods/services baseline, training, image generation, and retries.</dd></div>
       </dl>
       <div class="methodology__links">
         <a href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Masley factor source</a>
         <a href="https://ecologits.ai/latest/methodology/llm_inference/" target="_blank" rel="noreferrer">EcoLogits methodology</a>
+        <a href="${CAR_ASSET_SOURCE.url}" target="_blank" rel="noreferrer">Model 3 asset</a>
+        <a href="${CAR_ASSET_SOURCE.licenseUrl}" target="_blank" rel="noreferrer">CC BY 4.0 license</a>
       </div>
       <p class="dialog-source">${MASLEY_SOURCE.version} · Updated ${MASLEY_SOURCE.updated}</p>
     </form>

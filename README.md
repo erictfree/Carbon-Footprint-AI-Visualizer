@@ -5,7 +5,7 @@ PromptMiles translates estimated AI energy into the distance a 2024 Tesla Model 
 This repository currently contains the M2 profile-and-HUD checkpoint:
 
 - Vite + vanilla TypeScript application shell
-- Procedural Three.js car placeholder and dual-path scene
+- Licensed 2024 Model 3 GLB with a procedural fallback and dual-path Three.js scene
 - Browser-local CSV ingestion and aggregation with PapaParse
 - Four seeded synthetic scenarios spanning light chat, typical use, agent-heavy use, and unknown-model fallback
 - Complete nine-model Masley / EcoLogits v0.10 factor snapshot with uncertainty ranges
@@ -49,5 +49,13 @@ The calculation modules do not depend on the renderer. A future real OpenAI expo
 The current factor snapshot comes from [Andy Masley’s public-domain calculator source](https://andymasley.com/visuals/ai-prompt-footprint-source.txt), which uses EcoLogits v0.10 central and 95% interval estimates. PromptMiles interpolates those output-token scenarios per model and request. The published [EcoLogits LLM inference methodology](https://ecologits.ai/latest/methodology/llm_inference/) does not currently model input-token processing, so PromptMiles displays imported input-token totals but excludes them from the estimate. Results remain estimates rather than measurements.
 
 Raw CSV rows are parsed locally and discarded after aggregation. PromptMiles does not upload usage files.
+
+## 3D asset attribution
+
+The production car asset is “2024 Tesla Model 3,” credited in its embedded metadata to
+[RBLXSupercars](https://sketchfab.com/RBLXSupercars) and shared on Sketchfab by
+[brandonleong28](https://sketchfab.com/3d-models/tesla-model-3-2024-36c52f3f89f6439c90310f14e8ff33f2).
+It is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and is rescaled,
+reoriented when needed, shadow-enabled, and material-tuned at runtime for PromptMiles.
 
 See [`PromptMiles_PRD_v0.1.docx`](./PromptMiles_PRD_v0.1.docx) for the complete product requirements.

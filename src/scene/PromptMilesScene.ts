@@ -1,7 +1,16 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-function createCar(): THREE.Group {
+const PRODUCTION_CAR_URL = new URL(
+  '../../models/tesla-model-3-2024/source/2024_tesla_model_3.glb',
+  import.meta.url,
+).href;
+const PATH_ORIGIN_X = 0.75;
+const CAR_LENGTH = 4.45;
+
+function createFallbackCar(): THREE.Group {
   const car = new THREE.Group();
   car.name = 'Model 3 placeholder';
 
@@ -81,8 +90,17 @@ function createCar(): THREE.Group {
     car.add(rear);
   }
 
-  car.position.set(-3.1, 0, 0);
   return car;
+}
+
+function disposeObject(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry?.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) material?.dispose();
+  });
 }
 
 function createStars(): THREE.Points {
@@ -119,11 +137,12 @@ export class PromptMilesScene {
   private readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: OrbitControls;
-  private readonly car = createCar();
+  private readonly car = new THREE.Group();
   private readonly stars = createStars();
   private readonly timer = new THREE.Timer();
   private readonly resizeObserver: ResizeObserver;
   private readonly pathGroup = new THREE.Group();
+  private environmentTexture: THREE.Texture | null = null;
   private frame = 0;
   private disposed = false;
 
@@ -138,6 +157,13 @@ export class PromptMilesScene {
     this.renderer.domElement.setAttribute('aria-hidden', 'true');
     this.container.appendChild(this.renderer.domElement);
     this.timer.connect(document);
+
+    const environment = new RoomEnvironment();
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    this.environmentTexture = pmremGenerator.fromScene(environment).texture;
+    this.scene.environment = this.environmentTexture;
+    environment.dispose();
+    pmremGenerator.dispose();
 
     this.scene.fog = new THREE.FogExp2(0x07131d, 0.025);
     this.camera.position.set(8.4, 4.9, 9.8);
@@ -185,13 +211,79 @@ export class PromptMilesScene {
     grid.position.y = 0.012;
     this.scene.add(grid);
 
+    this.car.name = '2024 Tesla Model 3';
+    // Keep the car's nose connected to the paths while clearing the left-side HUD.
+    this.car.position.set(PATH_ORIGIN_X - CAR_LENGTH / 2, 0, 0);
+    this.car.add(createFallbackCar());
+    this.container.dataset.carAsset = 'loading';
+
     this.scene.add(this.stars, this.car, this.pathGroup);
+    this.loadProductionCar();
     this.setDistances(0.4, 650);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
     this.resize();
     this.animate();
+  }
+
+  private loadProductionCar(): void {
+    const loader = new GLTFLoader();
+    loader.load(
+      PRODUCTION_CAR_URL,
+      (gltf) => {
+        if (this.disposed) {
+          disposeObject(gltf.scene);
+          return;
+        }
+
+        const model = new THREE.Group();
+        model.name = '2024 Tesla Model 3 · CC BY 4.0';
+        model.add(gltf.scene);
+        model.updateMatrixWorld(true);
+
+        let box = new THREE.Box3().setFromObject(model);
+        const initialSize = box.getSize(new THREE.Vector3());
+        if (initialSize.z > initialSize.x) {
+          model.rotation.y = Math.PI / 2;
+          model.updateMatrixWorld(true);
+          box = new THREE.Box3().setFromObject(model);
+        }
+
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const scale = CAR_LENGTH / Math.max(size.x, 0.001);
+        model.scale.setScalar(scale);
+        model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
+
+        const anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+        gltf.scene.traverse((object) => {
+          const mesh = object as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const material of materials) {
+            const standard = material as THREE.MeshStandardMaterial;
+            standard.envMapIntensity = 1.2;
+            for (const texture of [standard.map, standard.normalMap, standard.roughnessMap, standard.metalnessMap]) {
+              if (texture) texture.anisotropy = anisotropy;
+            }
+          }
+        });
+
+        for (const child of [...this.car.children]) {
+          disposeObject(child);
+          this.car.remove(child);
+        }
+        this.car.add(model);
+        this.container.dataset.carAsset = 'loaded';
+      },
+      undefined,
+      () => {
+        this.container.dataset.carAsset = 'fallback';
+      },
+    );
   }
 
   setDistances(aiMiles: number, lifestyleMiles: number, lifestyleColor = 0xffa856): void {
@@ -212,10 +304,10 @@ export class PromptMilesScene {
   private createPath(miles: number, lane: number, color: number, radius: number): THREE.Mesh {
     const length = visualLength(miles);
     const points = [
-      new THREE.Vector3(-0.85, 0.13, lane),
-      new THREE.Vector3(length * 0.22, 0.16, lane * 1.1),
-      new THREE.Vector3(length * 0.52, 0.2 + Math.min(length / 90, 0.18), lane * 1.8),
-      new THREE.Vector3(length, 0.26 + Math.min(length / 55, 0.38), lane * 2.4),
+      new THREE.Vector3(PATH_ORIGIN_X, 0.13, lane),
+      new THREE.Vector3(PATH_ORIGIN_X + length * 0.22, 0.16, lane * 1.1),
+      new THREE.Vector3(PATH_ORIGIN_X + length * 0.52, 0.2 + Math.min(length / 90, 0.18), lane * 1.8),
+      new THREE.Vector3(PATH_ORIGIN_X + length, 0.26 + Math.min(length / 55, 0.38), lane * 2.4),
     ];
     const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.45);
     const geometry = new THREE.TubeGeometry(curve, 80, radius, 10, false);
@@ -257,6 +349,8 @@ export class PromptMilesScene {
     this.resizeObserver.disconnect();
     this.timer.dispose();
     this.controls.dispose();
+    disposeObject(this.car);
+    this.environmentTexture?.dispose();
     this.renderer.dispose();
     this.container.replaceChildren();
   }

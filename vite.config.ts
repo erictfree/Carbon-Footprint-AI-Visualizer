@@ -3,8 +3,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   build: {
-    // Three.js is isolated behind a dynamic import; its 3D chunk is ~570 kB minified / ~143 kB gzip.
-    chunkSizeWarningLimit: 600,
+    // Three.js, the GLTF loader, and environment lighting stay isolated in one lazily loaded 3D chunk.
+    chunkSizeWarningLimit: 675,
   },
   plugins: [
     VitePWA({
@@ -29,7 +29,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg}'],
+        globPatterns: ['**/*.{js,css,html,svg,glb}'],
+        maximumFileSizeToCacheInBytes: 10 * 1_024 * 1_024,
         navigateFallback: 'index.html',
       },
     }),
