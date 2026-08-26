@@ -21,6 +21,8 @@ describe('comparison engine', () => {
     expect(result.aiMiles.central).toBeCloseTo((result.energyWh.central / 1_000) * 4, 8);
     expect(result.lifestyleMiles).toBeGreaterThan(result.aiMiles.central);
     expect(result.unknownModels).toEqual([]);
+    expect(result.modelBreakdown).toHaveLength(2);
+    expect(result.modelBreakdown[0]?.energyWh.central).toBeGreaterThan(0);
   });
 
   it('surfaces unknown models while still producing a fallback estimate', () => {
@@ -31,6 +33,7 @@ describe('comparison engine', () => {
 
     expect(result.unknownModels).toEqual(['mystery-model']);
     expect(result.energyWh.central).toBeGreaterThan(0);
+    expect(result.modelBreakdown[0]?.fallback).toBe(true);
   });
 
   it('formats sub-mile distances in concrete units', () => {

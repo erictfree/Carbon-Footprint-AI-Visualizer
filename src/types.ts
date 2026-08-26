@@ -41,6 +41,17 @@ export interface LifestyleProfile {
   model3Efficiency: number;
 }
 
+export interface ModelEnergyBreakdown {
+  model: string;
+  factorModel: string;
+  fallback: boolean;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  averageOutputTokens: number;
+  energyWh: RangeValue;
+}
+
 export interface ComparisonResult {
   energyWh: RangeValue;
   aiMiles: RangeValue;
@@ -48,12 +59,13 @@ export interface ComparisonResult {
   ratio: number;
   comparisonDays: number;
   unknownModels: string[];
+  modelBreakdown: ModelEnergyBreakdown[];
 }
 
 export interface AppState {
   aggregate: UsageAggregate | null;
   profile: LifestyleProfile;
   result: ComparisonResult | null;
-  status: 'booting' | 'ready' | 'parsing' | 'error';
+  status: 'booting' | 'ready' | 'parsing' | 'mapping' | 'error';
   error: string | null;
 }

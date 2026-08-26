@@ -7,6 +7,7 @@ import {
 import type {
   ComparisonResult,
   LifestyleProfile,
+  ModelEnergyBreakdown,
   ModelUsageAggregate,
   RangeValue,
   UsageAggregate,
@@ -30,13 +31,19 @@ function scaleRange(value: RangeValue, scale: number): RangeValue {
   };
 }
 
-function energyForModel(usage: ModelUsageAggregate): { energy: RangeValue; fallback: boolean } {
+function energyForModel(usage: ModelUsageAggregate): ModelEnergyBreakdown {
   const { curve, fallback } = resolveModelCurve(usage.model);
   const requests = Math.max(1, usage.requests);
   const averageOutputTokens = usage.outputTokens / requests;
   return {
-    energy: scaleRange(estimateRequestEnergy(curve, averageOutputTokens), requests),
+    model: usage.model,
+    factorModel: curve.name,
     fallback,
+    requests,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    averageOutputTokens,
+    energyWh: scaleRange(estimateRequestEnergy(curve, averageOutputTokens), requests),
   };
 }
 
@@ -51,10 +58,12 @@ export function calculateComparison(
 ): ComparisonResult {
   let energyWh: RangeValue = { low: 0, central: 0, high: 0 };
   const unknownModels: string[] = [];
+  const modelBreakdown: ModelEnergyBreakdown[] = [];
 
   for (const modelUsage of aggregate.models) {
     const estimate = energyForModel(modelUsage);
-    energyWh = sumRange(energyWh, estimate.energy);
+    energyWh = sumRange(energyWh, estimate.energyWh);
+    modelBreakdown.push(estimate);
     if (estimate.fallback) unknownModels.push(modelUsage.model);
   }
 
@@ -72,6 +81,7 @@ export function calculateComparison(
     ratio,
     comparisonDays: days,
     unknownModels: [...new Set(unknownModels)],
+    modelBreakdown: modelBreakdown.sort((a, b) => b.energyWh.central - a.energyWh.central),
   };
 }
 

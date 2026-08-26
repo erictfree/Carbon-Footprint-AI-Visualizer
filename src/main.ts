@@ -1,25 +1,38 @@
 import './styles.css';
 import { calculateComparison, formatDistance, formatEnergy } from './calc/engine';
 import { DIETS, MASLEY_SOURCE, REGIONS } from './factors/masley';
-import { SYNTHETIC_USAGE_CSV } from './fixtures/synthetic';
-import { parseUsageCsvText, parseUsageFile } from './ingest/parseUsageCsv';
+import {
+  SYNTHETIC_SCENARIOS,
+  type SyntheticScenarioId,
+} from './fixtures/synthetic';
+import {
+  CsvSchemaError,
+  parseUsageCsvText,
+  parseUsageFile,
+  type UsageColumnMapping,
+} from './ingest/parseUsageCsv';
 import { createStore } from './state/store';
+import { loadSnapshot, saveSnapshot } from './storage/persistence';
 import type { AppState, DietId, LifestyleProfile, RegionId } from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('PromptMiles could not find its app root.');
 
-const initialProfile: LifestyleProfile = {
+const defaultProfile: LifestyleProfile = {
   diet: 'avg',
   region: 'us',
   model3Efficiency: 4,
 };
 
+const restored = loadSnapshot(window.localStorage);
+const initialProfile = restored?.profile ?? defaultProfile;
+const initialAggregate = restored?.aggregate ?? null;
+
 const store = createStore<AppState>({
-  aggregate: null,
+  aggregate: initialAggregate,
   profile: initialProfile,
-  result: null,
-  status: 'booting',
+  result: initialAggregate ? calculateComparison(initialAggregate, initialProfile) : null,
+  status: initialAggregate ? 'ready' : 'booting',
   error: null,
 });
 
@@ -90,6 +103,14 @@ app.innerHTML = `
         <input id="efficiency-range" type="range" min="3" max="4.6" step="0.1" value="4" />
       </label>
 
+      <label class="scenario-control">
+        <span>Development scenario</span>
+        <select id="scenario-select">
+          ${Object.values(SYNTHETIC_SCENARIOS).map((scenario) => `<option value="${scenario.id}">${scenario.label}</option>`).join('')}
+        </select>
+        <small id="scenario-description">${SYNTHETIC_SCENARIOS.typical.description}</small>
+      </label>
+
       <div class="dataset-card">
         <div>
           <span id="source-name">Synthetic demo</span>
@@ -100,9 +121,19 @@ app.innerHTML = `
       <input id="csv-input" type="file" accept=".csv,text/csv" hidden />
 
       <div class="hud__actions">
-        <button class="primary-button" id="load-synthetic" type="button">Replay synthetic demo</button>
-        <button class="text-button text-button--muted" id="download-synthetic" type="button">Download sample CSV</button>
+        <button class="primary-button" id="load-synthetic" type="button">Load scenario</button>
+        <button class="text-button text-button--muted" id="download-synthetic" type="button">Download its CSV</button>
       </div>
+
+      <details class="breakdown" id="breakdown">
+        <summary>Calculation breakdown</summary>
+        <div class="breakdown__body">
+          <p class="breakdown__formula" id="breakdown-formula">—</p>
+          <p class="breakdown__note" id="input-token-note">—</p>
+          <div class="breakdown__models" id="breakdown-models"></div>
+          <p class="fallback-warning" id="fallback-warning" hidden></p>
+        </div>
+      </details>
 
       <p class="honesty-note">
         <span>Estimate</span> Wide uncertainty applies. Raw CSV rows stay in this browser and are discarded after aggregation.
@@ -114,21 +145,46 @@ app.innerHTML = `
   <dialog class="methodology" id="methodology-dialog">
     <form method="dialog">
       <button class="dialog-close" value="close" aria-label="Close methodology">×</button>
-      <p class="dialog-eyebrow">Methodology · provisional M0</p>
+      <p class="dialog-eyebrow">Methodology · M1</p>
       <h2>Estimates, not measurements.</h2>
       <p>
         PromptMiles interpolates output-token scenarios from Andy Masley’s EcoLogits v0.10 snapshot,
-        including its low and high estimates. Input-token energy is not yet represented, so this first
-        implementation is a visual and architectural baseline—not a final footprint claim.
+        retaining each model’s central estimate and 95% range. EcoLogits models decoding from output
+        tokens; imported input tokens are shown for transparency but are not included in the estimate.
       </p>
       <dl>
-        <div><dt>AI energy</dt><dd>Per-model output scenarios, aggregated by request.</dd></div>
+        <div><dt>Factors</dt><dd>${MASLEY_SOURCE.modelCount} model curves, versioned to ${MASLEY_SOURCE.updated}.</dd></div>
+        <div><dt>AI energy</dt><dd>Average output tokens per request → model curve → requests → Wh range.</dd></div>
         <div><dt>EV conversion</dt><dd>Estimated watt-hours ÷ 1,000 × selected Model 3 mi/kWh.</dd></div>
         <div><dt>Lifestyle</dt><dd>Diet kg CO₂e → grid-equivalent kWh → the same Model 3 miles.</dd></div>
-        <div><dt>Training</dt><dd>Excluded.</dd></div>
+        <div><dt>Excluded</dt><dd>Input-token processing, training, image generation, and retries.</dd></div>
       </dl>
-      <a href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">View the factor source</a>
+      <div class="methodology__links">
+        <a href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Masley factor source</a>
+        <a href="https://ecologits.ai/latest/methodology/llm_inference/" target="_blank" rel="noreferrer">EcoLogits methodology</a>
+      </div>
       <p class="dialog-source">${MASLEY_SOURCE.version} · Updated ${MASLEY_SOURCE.updated}</p>
+    </form>
+  </dialog>
+
+  <dialog class="mapping-dialog" id="mapping-dialog">
+    <form id="mapping-form">
+      <button class="dialog-close" id="mapping-close" type="button" aria-label="Cancel CSV mapping">×</button>
+      <p class="dialog-eyebrow">CSV column mapping</p>
+      <h2>Tell us which columns to use.</h2>
+      <p>PromptMiles did not recognize this export automatically. Nothing leaves your browser.</p>
+      <div class="mapping-grid">
+        <label><span>Date or timestamp</span><select id="map-timestamp" required></select></label>
+        <label><span>Model</span><select id="map-model" required></select></label>
+        <label><span>Input tokens <em>optional</em></span><select id="map-input"></select></label>
+        <label><span>Output tokens</span><select id="map-output"></select></label>
+        <label><span>Requests <em>optional</em></span><select id="map-requests"></select></label>
+      </div>
+      <p class="mapping-error" id="mapping-error" hidden></p>
+      <div class="mapping-actions">
+        <button class="text-button" id="mapping-cancel" type="button">Cancel</button>
+        <button class="primary-button" type="submit">Import locally</button>
+      </div>
     </form>
   </dialog>
 `;
@@ -145,27 +201,70 @@ const csvInput = byId<HTMLInputElement>('csv-input');
 const dietSelect = byId<HTMLSelectElement>('diet-select');
 const regionSelect = byId<HTMLSelectElement>('region-select');
 const efficiencyRange = byId<HTMLInputElement>('efficiency-range');
+const scenarioSelect = byId<HTMLSelectElement>('scenario-select');
 const methodology = byId<HTMLDialogElement>('methodology-dialog');
+const mappingDialog = byId<HTMLDialogElement>('mapping-dialog');
+const mappingForm = byId<HTMLFormElement>('mapping-form');
+let pendingFile: File | null = null;
 
-function loadSynthetic(): void {
+function selectedScenario() {
+  return SYNTHETIC_SCENARIOS[scenarioSelect.value as SyntheticScenarioId] ?? SYNTHETIC_SCENARIOS.typical;
+}
+
+function loadSynthetic(id: SyntheticScenarioId = scenarioSelect.value as SyntheticScenarioId): void {
+  const scenario = SYNTHETIC_SCENARIOS[id] ?? SYNTHETIC_SCENARIOS.typical;
   try {
-    const aggregate = parseUsageCsvText(SYNTHETIC_USAGE_CSV, {
-      sourceName: 'promptmiles-synthetic-july-2026.csv',
+    const aggregate = parseUsageCsvText(scenario.csv, {
+      sourceName: scenario.filename,
       synthetic: true,
     });
-    store.setState({ aggregate, result: calculateComparison(aggregate, store.getState().profile), status: 'ready', error: null });
+    store.setState({
+      aggregate,
+      result: calculateComparison(aggregate, store.getState().profile),
+      status: 'ready',
+      error: null,
+    });
   } catch (error) {
-    store.setState({ status: 'error', error: error instanceof Error ? error.message : 'Could not load the synthetic demo.' });
+    store.setState({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Could not load the synthetic demo.',
+    });
   }
 }
 
-async function loadFile(file: File): Promise<void> {
+function populateMapping(headers: string[]): void {
+  const selectIds = ['map-timestamp', 'map-model', 'map-input', 'map-output', 'map-requests'];
+  selectIds.forEach((id) => {
+    const select = byId<HTMLSelectElement>(id);
+    select.replaceChildren(new Option('Choose a column…', ''));
+    headers.forEach((header) => select.add(new Option(header, header)));
+  });
+  byId('mapping-error').hidden = true;
+}
+
+async function loadFile(file: File, mapping?: UsageColumnMapping): Promise<void> {
   store.setState({ status: 'parsing', error: null });
   try {
-    const aggregate = await parseUsageFile(file);
-    store.setState({ aggregate, result: calculateComparison(aggregate, store.getState().profile), status: 'ready' });
+    const aggregate = await parseUsageFile(file, { mapping });
+    pendingFile = null;
+    store.setState({
+      aggregate,
+      result: calculateComparison(aggregate, store.getState().profile),
+      status: 'ready',
+      error: null,
+    });
   } catch (error) {
-    store.setState({ status: 'error', error: error instanceof Error ? error.message : 'Could not parse that CSV.' });
+    if (error instanceof CsvSchemaError) {
+      pendingFile = file;
+      populateMapping(error.headers);
+      store.setState({ status: 'mapping', error: null });
+      if (!mappingDialog.open) mappingDialog.showModal();
+      return;
+    }
+    store.setState({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Could not parse that CSV.',
+    });
   } finally {
     csvInput.value = '';
   }
@@ -178,6 +277,33 @@ function updateProfile(patch: Partial<LifestyleProfile>): void {
   });
 }
 
+function renderModelBreakdown(state: AppState): void {
+  const container = byId('breakdown-models');
+  container.replaceChildren();
+  if (!state.aggregate || !state.result) return;
+
+  for (const model of state.result.modelBreakdown) {
+    const row = document.createElement('div');
+    row.className = 'breakdown-row';
+    const identity = document.createElement('div');
+    const name = document.createElement('strong');
+    name.textContent = model.model;
+    const detail = document.createElement('span');
+    detail.textContent = `${model.requests.toLocaleString('en-US')} requests · ${Math.round(model.averageOutputTokens).toLocaleString('en-US')} avg output tokens`;
+    identity.append(name, detail);
+    const value = document.createElement('span');
+    value.className = 'breakdown-row__value';
+    value.textContent = formatEnergy(model.energyWh.central);
+    if (model.fallback) {
+      const badge = document.createElement('em');
+      badge.textContent = `uses ${model.factorModel}`;
+      identity.append(badge);
+    }
+    row.append(identity, value);
+    container.append(row);
+  }
+}
+
 store.subscribe((state) => {
   const { aggregate, result } = state;
   const errorMessage = byId<HTMLParagraphElement>('error-message');
@@ -185,16 +311,24 @@ store.subscribe((state) => {
   errorMessage.textContent = state.error ?? '';
   byId('dataset-status').textContent = state.status === 'parsing'
     ? 'Parsing locally…'
-    : aggregate?.synthetic
-      ? 'Synthetic demonstration'
-      : aggregate
-        ? 'Personal CSV · local only'
-        : 'Waiting for usage data';
+    : state.status === 'mapping'
+      ? 'Waiting for column mapping'
+      : aggregate?.synthetic
+        ? 'Synthetic demonstration'
+        : aggregate
+          ? 'Personal CSV · local only'
+          : 'Waiting for usage data';
 
   dietSelect.value = state.profile.diet;
   regionSelect.value = state.profile.region;
   efficiencyRange.value = String(state.profile.model3Efficiency);
   byId<HTMLOutputElement>('efficiency-value').value = `${state.profile.model3Efficiency.toFixed(1)} mi/kWh`;
+
+  try {
+    saveSnapshot(window.localStorage, state.profile, state.aggregate);
+  } catch {
+    // Persistence is optional; the active session remains fully functional.
+  }
 
   if (!aggregate || !result) return;
   const aiDistance = formatDistance(result.aiMiles.central);
@@ -209,27 +343,72 @@ store.subscribe((state) => {
     : 'Comparison unavailable';
   byId('source-name').textContent = aggregate.sourceName;
   byId('source-meta').textContent = `${aggregate.rowCount} rows · ${aggregate.requests.toLocaleString('en-US')} requests · ${result.comparisonDays} days`;
+  byId('breakdown-formula').textContent = `${aggregate.outputTokens.toLocaleString('en-US')} output tokens → ${formatEnergy(result.energyWh.central)} → ${aiDistance} at ${state.profile.model3Efficiency.toFixed(1)} mi/kWh.`;
+  byId('input-token-note').textContent = `${aggregate.inputTokens.toLocaleString('en-US')} input tokens were observed but are not modeled by EcoLogits.`;
+  const fallbackWarning = byId<HTMLParagraphElement>('fallback-warning');
+  fallbackWarning.hidden = result.unknownModels.length === 0;
+  fallbackWarning.textContent = result.unknownModels.length
+    ? `Fallback estimate used for: ${result.unknownModels.join(', ')}.`
+    : '';
+  renderModelBreakdown(state);
   scene.setDistances(result.aiMiles.central, result.lifestyleMiles);
 });
 
 dietSelect.addEventListener('change', () => updateProfile({ diet: dietSelect.value as DietId }));
 regionSelect.addEventListener('change', () => updateProfile({ region: regionSelect.value as RegionId }));
 efficiencyRange.addEventListener('input', () => updateProfile({ model3Efficiency: Number(efficiencyRange.value) }));
+scenarioSelect.addEventListener('change', () => {
+  byId('scenario-description').textContent = selectedScenario().description;
+});
 byId('replace-csv').addEventListener('click', () => csvInput.click());
 csvInput.addEventListener('change', () => {
   const file = csvInput.files?.[0];
   if (file) void loadFile(file);
 });
-byId('load-synthetic').addEventListener('click', loadSynthetic);
+byId('load-synthetic').addEventListener('click', () => loadSynthetic());
 byId('download-synthetic').addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob([SYNTHETIC_USAGE_CSV], { type: 'text/csv' }));
+  const scenario = selectedScenario();
+  const url = URL.createObjectURL(new Blob([scenario.csv], { type: 'text/csv' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'promptmiles-synthetic-usage.csv';
+  link.download = scenario.filename;
   link.click();
   URL.revokeObjectURL(url);
 });
 byId('methodology-open').addEventListener('click', () => methodology.showModal());
 
+function closeMapping(): void {
+  pendingFile = null;
+  mappingDialog.close();
+  store.setState({ status: store.getState().aggregate ? 'ready' : 'error' });
+}
+
+byId('mapping-close').addEventListener('click', closeMapping);
+byId('mapping-cancel').addEventListener('click', closeMapping);
+mappingDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeMapping();
+});
+mappingForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!pendingFile) return;
+  const mapping: UsageColumnMapping = {
+    timestamp: byId<HTMLSelectElement>('map-timestamp').value,
+    model: byId<HTMLSelectElement>('map-model').value,
+    inputTokens: byId<HTMLSelectElement>('map-input').value || undefined,
+    outputTokens: byId<HTMLSelectElement>('map-output').value || undefined,
+    requests: byId<HTMLSelectElement>('map-requests').value || undefined,
+  };
+  const mappingError = byId<HTMLParagraphElement>('mapping-error');
+  if (!mapping.timestamp || !mapping.model || (!mapping.inputTokens && !mapping.outputTokens)) {
+    mappingError.textContent = 'Choose a date, model, and at least one token column.';
+    mappingError.hidden = false;
+    return;
+  }
+  const file = pendingFile;
+  mappingDialog.close();
+  void loadFile(file, mapping);
+});
+
 window.addEventListener('beforeunload', () => scene.dispose());
-loadSynthetic();
+if (!initialAggregate) loadSynthetic('typical');

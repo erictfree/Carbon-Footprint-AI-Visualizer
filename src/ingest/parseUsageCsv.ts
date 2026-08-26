@@ -3,6 +3,30 @@ import type { ModelUsageAggregate, UsageAggregate, UsageRow } from '../types';
 
 export const MAX_CSV_BYTES = 50 * 1024 * 1024;
 
+export interface UsageColumnMapping {
+  timestamp: string;
+  model: string;
+  inputTokens?: string;
+  outputTokens?: string;
+  requests?: string;
+}
+
+interface ParseOptions {
+  sourceName?: string;
+  synthetic?: boolean;
+  mapping?: Partial<UsageColumnMapping>;
+}
+
+export class CsvSchemaError extends Error {
+  constructor(
+    message: string,
+    readonly headers: string[],
+  ) {
+    super(message);
+    this.name = 'CsvSchemaError';
+  }
+}
+
 const aliases = {
   timestamp: ['timestamp', 'date', 'usage_date', 'start_time', 'bucket_start_time', 'created_at'],
   model: ['model', 'model_name', 'line_item', 'product'],
@@ -11,7 +35,7 @@ const aliases = {
   requests: ['requests', 'num_requests', 'request_count', 'num_model_requests'],
 };
 
-function canonicalHeader(header: string): string {
+export function canonicalHeader(header: string): string {
   return header
     .replace(/^\uFEFF/, '')
     .trim()
@@ -69,7 +93,7 @@ function aggregateRows(
 
 export function parseUsageCsvText(
   csv: string,
-  options: { sourceName?: string; synthetic?: boolean } = {},
+  options: ParseOptions = {},
 ): UsageAggregate {
   const parsed = Papa.parse<Record<string, string>>(csv, {
     header: true,
@@ -78,17 +102,24 @@ export function parseUsageCsvText(
   });
 
   const headers = (parsed.meta.fields ?? []).map(canonicalHeader);
+  const mapped = options.mapping;
+  const selected = (value: string | undefined): string | undefined => {
+    if (!value) return undefined;
+    const canonical = canonicalHeader(value);
+    return headers.includes(canonical) ? canonical : undefined;
+  };
   const columns = {
-    timestamp: matchingColumn(headers, aliases.timestamp),
-    model: matchingColumn(headers, aliases.model),
-    inputTokens: matchingColumn(headers, aliases.inputTokens),
-    outputTokens: matchingColumn(headers, aliases.outputTokens),
-    requests: matchingColumn(headers, aliases.requests),
+    timestamp: selected(mapped?.timestamp) ?? matchingColumn(headers, aliases.timestamp),
+    model: selected(mapped?.model) ?? matchingColumn(headers, aliases.model),
+    inputTokens: selected(mapped?.inputTokens) ?? matchingColumn(headers, aliases.inputTokens),
+    outputTokens: selected(mapped?.outputTokens) ?? matchingColumn(headers, aliases.outputTokens),
+    requests: selected(mapped?.requests) ?? matchingColumn(headers, aliases.requests),
   };
 
   if (!columns.timestamp || !columns.model || (!columns.inputTokens && !columns.outputTokens)) {
-    throw new Error(
+    throw new CsvSchemaError(
       'CSV needs a date, model, and at least one token column. Column-name variations are supported.',
+      headers,
     );
   }
 
@@ -118,9 +149,12 @@ export function parseUsageCsvText(
   );
 }
 
-export async function parseUsageFile(file: File): Promise<UsageAggregate> {
+export async function parseUsageFile(
+  file: File,
+  options: Pick<ParseOptions, 'mapping'> = {},
+): Promise<UsageAggregate> {
   if (file.size > MAX_CSV_BYTES) {
     throw new Error(`That file is larger than the ${(MAX_CSV_BYTES / 1024 / 1024).toFixed(0)} MB limit.`);
   }
-  return parseUsageCsvText(await file.text(), { sourceName: file.name });
+  return parseUsageCsvText(await file.text(), { sourceName: file.name, mapping: options.mapping });
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SYNTHETIC_USAGE_CSV } from '../fixtures/synthetic';
-import { parseUsageCsvText } from './parseUsageCsv';
+import { CsvSchemaError, parseUsageCsvText } from './parseUsageCsv';
 
 describe('usage CSV ingestion', () => {
   it('aggregates the seeded synthetic month deterministically', () => {
@@ -29,5 +29,24 @@ describe('usage CSV ingestion', () => {
 
   it('rejects a CSV without the minimum semantic fields', () => {
     expect(() => parseUsageCsvText('thing,value\nfoo,20')).toThrow(/date, model/i);
+  });
+
+  it('reports unfamiliar headers and accepts an explicit local mapping', () => {
+    const csv = 'when,engine,prompt,answer,calls\n2026-08-01,gpt-5.5,800,200,2';
+
+    expect(() => parseUsageCsvText(csv)).toThrow(CsvSchemaError);
+    const result = parseUsageCsvText(csv, {
+      mapping: {
+        timestamp: 'when',
+        model: 'engine',
+        inputTokens: 'prompt',
+        outputTokens: 'answer',
+        requests: 'calls',
+      },
+    });
+
+    expect(result.inputTokens).toBe(800);
+    expect(result.outputTokens).toBe(200);
+    expect(result.requests).toBe(2);
   });
 });

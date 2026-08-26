@@ -7,6 +7,12 @@ import {
 } from './masley';
 
 describe('Masley factor interpolation', () => {
+  it('contains the complete nine-model Masley snapshot', () => {
+    expect(Object.keys(MODEL_CURVES)).toHaveLength(9);
+    expect(MODEL_CURVES['claude-sonnet-4-6']?.name).toBe('Claude Sonnet 4.6');
+    expect(MODEL_CURVES['gemini-3.5-flash']?.checkpoints).toHaveLength(8);
+  });
+
   it('preserves a published checkpoint exactly', () => {
     const result = estimateRequestEnergy(MODEL_CURVES['gpt-5.5']!, 400);
 
