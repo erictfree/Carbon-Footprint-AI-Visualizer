@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DRIVING_KG_CO2E_PER_MILE,
   estimateRequestEnergy,
   FALLBACK_MODEL_ID,
+  FLIGHT_KG_CO2E,
+  HOME_ENERGY,
   MODEL_CURVES,
   resolveModelCurve,
 } from './masley';
@@ -35,5 +38,11 @@ describe('Masley factor interpolation', () => {
 
     expect(resolved.fallback).toBe(true);
     expect(resolved.curve.id).toBe(FALLBACK_MODEL_ID);
+  });
+
+  it('locks the Masley and PRD lifestyle conversion factors', () => {
+    expect(DRIVING_KG_CO2E_PER_MILE).toBe(0.4);
+    expect(Object.values(HOME_ENERGY).map((home) => home.annualKgCo2e)).toEqual([1_500, 3_500, 7_000]);
+    expect(Object.values(FLIGHT_KG_CO2E).map((flight) => flight.kgCo2ePerRoundTrip)).toEqual([250, 1_000, 1_600]);
   });
 });

@@ -1,4 +1,12 @@
-import type { DietId, RangeValue, RegionId } from '../types';
+import type {
+  ComparisonWindowId,
+  DietId,
+  FlightLengthId,
+  HomeEnergyId,
+  LifestyleProfile,
+  RangeValue,
+  RegionId,
+} from '../types';
 
 export const MASLEY_SOURCE = {
   label: 'Andy Masley AI Prompt Footprint / EcoLogits v0.10',
@@ -120,6 +128,26 @@ export const DIETS: Record<DietId, { label: string; annualKgCo2e: number }> = {
   vegan: { label: 'Vegan', annualKgCo2e: 1_050 },
 };
 
+export const HOME_ENERGY: Record<HomeEnergyId, { label: string; annualKgCo2e: number }> = {
+  apt: { label: 'Small apartment', annualKgCo2e: 1_500 },
+  med: { label: 'Average house', annualKgCo2e: 3_500 },
+  big: { label: 'Large house', annualKgCo2e: 7_000 },
+};
+
+export const DRIVING_KG_CO2E_PER_MILE = 0.4;
+
+export const FLIGHT_KG_CO2E: Record<FlightLengthId, { label: string; kgCo2ePerRoundTrip: number }> = {
+  short: { label: 'Short', kgCo2ePerRoundTrip: 250 },
+  medium: { label: 'Medium', kgCo2ePerRoundTrip: 1_000 },
+  long: { label: 'Long', kgCo2ePerRoundTrip: 1_600 },
+};
+
+export const COMPARISON_WINDOWS: Record<ComparisonWindowId, { label: string; days: number | null }> = {
+  csv: { label: 'Match CSV span', days: null },
+  week: { label: 'Typical week', days: 7 },
+  month: { label: 'Typical month', days: 30 },
+};
+
 export const REGIONS: Record<RegionId, { label: string; gridGramsCo2ePerKwh: number }> = {
   us: { label: 'United States', gridGramsCo2ePerKwh: 380 },
   eu: { label: 'European Union', gridGramsCo2ePerKwh: 215 },
@@ -127,6 +155,17 @@ export const REGIONS: Record<RegionId, { label: string; gridGramsCo2ePerKwh: num
   cn: { label: 'China', gridGramsCo2ePerKwh: 580 },
   in: { label: 'India', gridGramsCo2ePerKwh: 700 },
   world: { label: 'World average', gridGramsCo2ePerKwh: 480 },
+};
+
+export const DEFAULT_PROFILE: LifestyleProfile = {
+  diet: 'avg',
+  region: 'us',
+  homeEnergy: 'med',
+  weeklyDrivingMiles: 230,
+  flightsPerYear: { short: 0, medium: 0, long: 0 },
+  comparisonWindow: 'csv',
+  startCity: 'Austin, TX',
+  model3Efficiency: 4,
 };
 
 export function resolveModelCurve(modelName: string): { curve: ModelCurve; fallback: boolean } {

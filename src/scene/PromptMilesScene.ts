@@ -110,6 +110,7 @@ function createStars(): THREE.Points {
 }
 
 function visualLength(miles: number): number {
+  if (miles <= 0) return 0;
   return THREE.MathUtils.clamp(3.2 + Math.log10(Math.max(0, miles) * 12 + 1) * 4.1, 3.2, 28);
 }
 
@@ -193,7 +194,7 @@ export class PromptMilesScene {
     this.animate();
   }
 
-  setDistances(aiMiles: number, lifestyleMiles: number): void {
+  setDistances(aiMiles: number, lifestyleMiles: number, lifestyleColor = 0xffa856): void {
     for (const child of [...this.pathGroup.children]) {
       const mesh = child as THREE.Mesh;
       mesh.geometry?.dispose();
@@ -202,10 +203,10 @@ export class PromptMilesScene {
       this.pathGroup.remove(child);
     }
 
-    this.pathGroup.add(
-      this.createPath(aiMiles, -0.58, 0x42e8df, 0.11),
-      this.createPath(lifestyleMiles, 0.58, 0xffa856, 0.095),
-    );
+    if (aiMiles > 0) this.pathGroup.add(this.createPath(aiMiles, -0.58, 0x42e8df, 0.11));
+    if (lifestyleMiles > 0) {
+      this.pathGroup.add(this.createPath(lifestyleMiles, 0.58, lifestyleColor, 0.095));
+    }
   }
 
   private createPath(miles: number, lane: number, color: number, radius: number): THREE.Mesh {

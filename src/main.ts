@@ -1,6 +1,14 @@
 import './styles.css';
 import { calculateComparison, formatDistance, formatEnergy } from './calc/engine';
-import { DIETS, MASLEY_SOURCE, REGIONS } from './factors/masley';
+import {
+  COMPARISON_WINDOWS,
+  DEFAULT_PROFILE,
+  DIETS,
+  FLIGHT_KG_CO2E,
+  HOME_ENERGY,
+  MASLEY_SOURCE,
+  REGIONS,
+} from './factors/masley';
 import {
   SYNTHETIC_SCENARIOS,
   type SyntheticScenarioId,
@@ -13,19 +21,23 @@ import {
 } from './ingest/parseUsageCsv';
 import { createStore } from './state/store';
 import { loadSnapshot, saveSnapshot } from './storage/persistence';
-import type { AppState, DietId, LifestyleProfile, RegionId } from './types';
+import type {
+  AppState,
+  ComparisonWindowId,
+  DietId,
+  FlightLengthId,
+  HomeEnergyId,
+  LifestyleImpact,
+  LifestyleMetricId,
+  LifestyleProfile,
+  RegionId,
+} from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('PromptMiles could not find its app root.');
 
-const defaultProfile: LifestyleProfile = {
-  diet: 'avg',
-  region: 'us',
-  model3Efficiency: 4,
-};
-
 const restored = loadSnapshot(window.localStorage);
-const initialProfile = restored?.profile ?? defaultProfile;
+const initialProfile = restored?.profile ?? DEFAULT_PROFILE;
 const initialAggregate = restored?.aggregate ?? null;
 
 const store = createStore<AppState>({
@@ -42,14 +54,18 @@ app.innerHTML = `
       <div class="scene-sky"></div>
       <div class="scene-canvas" id="scene-canvas"></div>
       <div class="scene-vignette"></div>
+      <div class="scene-origin">
+        <span>Starting from</span>
+        <strong id="scene-origin">Austin, TX</strong>
+      </div>
       <div class="scene-label scene-label--ai">
         <span class="scene-label__dot"></span>
         <span>AI path</span>
         <strong id="scene-ai-distance">—</strong>
       </div>
-      <div class="scene-label scene-label--life">
+      <div class="scene-label scene-label--life" id="scene-life-label-card">
         <span class="scene-label__dot"></span>
-        <span>Diet path</span>
+        <span id="scene-life-label">Lifestyle total</span>
         <strong id="scene-life-distance">—</strong>
       </div>
       <p class="scene-hint">Drag to orbit · scroll to zoom</p>
@@ -75,33 +91,95 @@ app.innerHTML = `
         <span id="energy-readout">—</span>
       </div>
 
-      <div class="ratio-card">
+      <button class="ratio-card is-active" data-comparison="total" type="button" aria-pressed="true">
+        <span class="ratio-card__swatch"></span>
         <div>
-          <span>Same-window diet equivalent</span>
+          <span id="comparison-name">Lifestyle total · same window</span>
           <strong id="life-distance">—</strong>
+          <small id="comparison-carbon">—</small>
         </div>
         <p id="ratio-readout">—</p>
-      </div>
+      </button>
 
-      <div class="controls-grid">
-        <label>
-          <span>Diet</span>
-          <select id="diet-select">
-            ${Object.entries(DIETS).map(([id, diet]) => `<option value="${id}">${diet.label}</option>`).join('')}
-          </select>
-        </label>
-        <label>
-          <span>Grid region</span>
-          <select id="region-select">
-            ${Object.entries(REGIONS).map(([id, region]) => `<option value="${id}">${region.label}</option>`).join('')}
-          </select>
-        </label>
+      <div class="impact-grid" aria-label="Choose a lifestyle path to compare">
+        <button class="impact-card impact-card--diet" data-comparison="diet" type="button" aria-pressed="false">
+          <span>Diet</span><strong id="diet-distance">—</strong><small id="diet-carbon">—</small>
+        </button>
+        <button class="impact-card impact-card--driving" data-comparison="driving" type="button" aria-pressed="false">
+          <span>Driving</span><strong id="driving-distance">—</strong><small id="driving-carbon">—</small>
+        </button>
+        <button class="impact-card impact-card--flights" data-comparison="flights" type="button" aria-pressed="false">
+          <span>Flights</span><strong id="flights-distance">—</strong><small id="flights-carbon">—</small>
+        </button>
+        <button class="impact-card impact-card--home" data-comparison="home" type="button" aria-pressed="false">
+          <span>Home energy</span><strong id="home-distance">—</strong><small id="home-carbon">—</small>
+        </button>
       </div>
+      <p class="impact-help">Select any card to put that path next to AI.</p>
 
-      <label class="range-control">
-        <span><span>Model 3 efficiency</span><output id="efficiency-value">4.0 mi/kWh</output></span>
-        <input id="efficiency-range" type="range" min="3" max="4.6" step="0.1" value="4" />
-      </label>
+      <section class="profile-section" aria-labelledby="profile-heading">
+        <div class="section-heading">
+          <div><span id="profile-heading">Your lifestyle</span><small id="window-summary">Matched to the CSV</small></div>
+          <button class="text-button text-button--muted" id="reset-profile" type="button">Reset</button>
+        </div>
+
+        <div class="controls-grid">
+          <label>
+            <span>Diet</span>
+            <select id="diet-select">
+              ${Object.entries(DIETS).map(([id, diet]) => `<option value="${id}">${diet.label}</option>`).join('')}
+            </select>
+          </label>
+          <label>
+            <span>Home energy</span>
+            <select id="home-select">
+              ${Object.entries(HOME_ENERGY).map(([id, home]) => `<option value="${id}">${home.label}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+
+        <label class="range-control range-control--driving">
+          <span>
+            <span>Weekly gasoline driving</span>
+            <span class="number-with-unit"><input id="driving-number" type="number" min="0" max="600" step="5" inputmode="numeric" aria-label="Weekly driving miles" /><em>mi</em></span>
+          </span>
+          <input id="driving-range" type="range" min="0" max="600" step="5" value="230" />
+        </label>
+
+        <fieldset class="flight-control">
+          <legend>Round-trip flights per year</legend>
+          <div>
+            ${Object.entries(FLIGHT_KG_CO2E).map(([id, flight]) => `
+              <label><span>${flight.label}</span><small>${flight.kgCo2ePerRoundTrip.toLocaleString('en-US')} kg</small><input id="flight-${id}" type="number" min="0" max="20" step="1" value="0" inputmode="numeric" /></label>
+            `).join('')}
+          </div>
+        </fieldset>
+
+        <div class="controls-grid controls-grid--secondary">
+          <label>
+            <span>Grid region</span>
+            <select id="region-select">
+              ${Object.entries(REGIONS).map(([id, region]) => `<option value="${id}">${region.label}</option>`).join('')}
+            </select>
+          </label>
+          <label>
+            <span>Comparison window</span>
+            <select id="window-select">
+              ${Object.entries(COMPARISON_WINDOWS).map(([id, window]) => `<option value="${id}">${window.label}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+
+        <label class="text-control">
+          <span>Start city</span>
+          <input id="start-city" type="text" maxlength="80" placeholder="Austin, TX" />
+        </label>
+
+        <label class="range-control">
+          <span><span>Model 3 efficiency</span><output id="efficiency-value">4.0 mi/kWh</output></span>
+          <input id="efficiency-range" type="range" min="3" max="4.6" step="0.1" value="4" />
+        </label>
+      </section>
 
       <label class="scenario-control">
         <span>Development scenario</span>
@@ -145,19 +223,22 @@ app.innerHTML = `
   <dialog class="methodology" id="methodology-dialog">
     <form method="dialog">
       <button class="dialog-close" value="close" aria-label="Close methodology">×</button>
-      <p class="dialog-eyebrow">Methodology · M1</p>
+      <p class="dialog-eyebrow">Methodology · M2</p>
       <h2>Estimates, not measurements.</h2>
       <p>
         PromptMiles interpolates output-token scenarios from Andy Masley’s EcoLogits v0.10 snapshot,
-        retaining each model’s central estimate and 95% range. EcoLogits models decoding from output
-        tokens; imported input tokens are shown for transparency but are not included in the estimate.
+        retaining each model’s central estimate and 95% range. Every lifestyle component is converted
+        from CO₂e to grid-equivalent energy, then into the same Model 3 miles as AI.
       </p>
       <dl>
-        <div><dt>Factors</dt><dd>${MASLEY_SOURCE.modelCount} model curves, versioned to ${MASLEY_SOURCE.updated}.</dd></div>
-        <div><dt>AI energy</dt><dd>Average output tokens per request → model curve → requests → Wh range.</dd></div>
-        <div><dt>EV conversion</dt><dd>Estimated watt-hours ÷ 1,000 × selected Model 3 mi/kWh.</dd></div>
-        <div><dt>Lifestyle</dt><dd>Diet kg CO₂e → grid-equivalent kWh → the same Model 3 miles.</dd></div>
-        <div><dt>Excluded</dt><dd>Input-token processing, training, image generation, and retries.</dd></div>
+        <div><dt>AI energy</dt><dd>Average output tokens per request → ${MASLEY_SOURCE.modelCount} model curves → requests → Wh range.</dd></div>
+        <div><dt>Diet</dt><dd>1.05–3.2 t CO₂e/year across vegan through heavy-meat profiles.</dd></div>
+        <div><dt>Driving</dt><dd>Weekly miles × 0.40 kg CO₂e per gasoline vehicle-mile.</dd></div>
+        <div><dt>Flights</dt><dd>250 / 1,000 / 1,600 kg CO₂e per short / medium / long round trip.</dd></div>
+        <div><dt>Home</dt><dd>1.5 / 3.5 / 7 t CO₂e/year for a small apartment through a large house.</dd></div>
+        <div><dt>Window</dt><dd>AI and lifestyle values are both normalized to the CSV span, 7 days, or 30 days.</dd></div>
+        <div><dt>Conversion</dt><dd>kg CO₂e → selected grid-equivalent kWh → selected Model 3 mi/kWh.</dd></div>
+        <div><dt>Excluded</dt><dd>Water, regional goods/services baseline, training, image generation, and retries.</dd></div>
       </dl>
       <div class="methodology__links">
         <a href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Masley factor source</a>
@@ -195,17 +276,48 @@ function byId<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
+function formatCarbon(kgCo2e: number): string {
+  if (kgCo2e >= 1_000) return `${(kgCo2e / 1_000).toFixed(2)} t CO₂e`;
+  if (kgCo2e >= 100) return `${Math.round(kgCo2e).toLocaleString('en-US')} kg CO₂e`;
+  if (kgCo2e >= 10) return `${kgCo2e.toFixed(1)} kg CO₂e`;
+  return `${kgCo2e.toFixed(2)} kg CO₂e`;
+}
+
+function clampNumber(value: number, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value)) return minimum;
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+const IMPACT_COLORS: Record<LifestyleMetricId, number> = {
+  total: 0xffa856,
+  diet: 0xffa856,
+  driving: 0xff6f61,
+  flights: 0xb894ff,
+  home: 0xffcf5b,
+};
+
 const { PromptMilesScene } = await import('./scene/PromptMilesScene');
 const scene = new PromptMilesScene(byId('scene-canvas'));
 const csvInput = byId<HTMLInputElement>('csv-input');
 const dietSelect = byId<HTMLSelectElement>('diet-select');
+const homeSelect = byId<HTMLSelectElement>('home-select');
 const regionSelect = byId<HTMLSelectElement>('region-select');
+const windowSelect = byId<HTMLSelectElement>('window-select');
+const drivingRange = byId<HTMLInputElement>('driving-range');
+const drivingNumber = byId<HTMLInputElement>('driving-number');
+const startCityInput = byId<HTMLInputElement>('start-city');
 const efficiencyRange = byId<HTMLInputElement>('efficiency-range');
 const scenarioSelect = byId<HTMLSelectElement>('scenario-select');
 const methodology = byId<HTMLDialogElement>('methodology-dialog');
 const mappingDialog = byId<HTMLDialogElement>('mapping-dialog');
 const mappingForm = byId<HTMLFormElement>('mapping-form');
+const flightInputs: Record<FlightLengthId, HTMLInputElement> = {
+  short: byId('flight-short'),
+  medium: byId('flight-medium'),
+  long: byId('flight-long'),
+};
 let pendingFile: File | null = null;
+let activeComparison: LifestyleMetricId = 'total';
 
 function selectedScenario() {
   return SYNTHETIC_SCENARIOS[scenarioSelect.value as SyntheticScenarioId] ?? SYNTHETIC_SCENARIOS.typical;
@@ -277,6 +389,53 @@ function updateProfile(patch: Partial<LifestyleProfile>): void {
   });
 }
 
+function updateFlight(length: FlightLengthId, count: number): void {
+  updateProfile({
+    flightsPerYear: {
+      ...store.getState().profile.flightsPerYear,
+      [length]: clampNumber(Math.round(count), 0, 20),
+    },
+  });
+}
+
+function impactFor(state: AppState, id: LifestyleMetricId): LifestyleImpact | null {
+  if (!state.result) return null;
+  return id === 'total' ? state.result.lifestyle.total : state.result.lifestyle.components[id];
+}
+
+function renderSelectedComparison(state: AppState): void {
+  const impact = impactFor(state, activeComparison);
+  if (!impact || !state.result) return;
+  const distance = formatDistance(impact.miles);
+  byId('comparison-name').textContent = `${impact.label} · same window`;
+  byId('comparison-carbon').textContent = formatCarbon(impact.kgCo2e);
+  byId('life-distance').textContent = distance;
+  byId('scene-life-label').textContent = impact.label;
+  byId('scene-life-distance').textContent = distance;
+  byId<HTMLElement>('scene-life-label-card').style.setProperty('--path-color', `#${IMPACT_COLORS[activeComparison].toString(16).padStart(6, '0')}`);
+  const ratio = state.result.aiMiles.central > 0
+    ? impact.miles / state.result.aiMiles.central
+    : Number.POSITIVE_INFINITY;
+  byId('ratio-readout').textContent = Number.isFinite(ratio)
+    ? `${Math.round(ratio).toLocaleString('en-US')}× AI`
+    : 'Comparison unavailable';
+
+  document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((button) => {
+    const selected = button.dataset.comparison === activeComparison;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  scene.setDistances(state.result.aiMiles.central, impact.miles, IMPACT_COLORS[activeComparison]);
+}
+
+function renderImpactCards(state: AppState): void {
+  if (!state.result) return;
+  for (const [id, impact] of Object.entries(state.result.lifestyle.components)) {
+    byId(`${id}-distance`).textContent = formatDistance(impact.miles);
+    byId(`${id}-carbon`).textContent = formatCarbon(impact.kgCo2e);
+  }
+}
+
 function renderModelBreakdown(state: AppState): void {
   const container = byId('breakdown-models');
   container.replaceChildren();
@@ -289,7 +448,7 @@ function renderModelBreakdown(state: AppState): void {
     const name = document.createElement('strong');
     name.textContent = model.model;
     const detail = document.createElement('span');
-    detail.textContent = `${model.requests.toLocaleString('en-US')} requests · ${Math.round(model.averageOutputTokens).toLocaleString('en-US')} avg output tokens`;
+    detail.textContent = `${model.requests.toLocaleString('en-US', { maximumFractionDigits: 1 })} requests · ${Math.round(model.averageOutputTokens).toLocaleString('en-US')} avg output tokens`;
     identity.append(name, detail);
     const value = document.createElement('span');
     value.className = 'breakdown-row__value';
@@ -320,9 +479,18 @@ store.subscribe((state) => {
           : 'Waiting for usage data';
 
   dietSelect.value = state.profile.diet;
+  homeSelect.value = state.profile.homeEnergy;
   regionSelect.value = state.profile.region;
+  windowSelect.value = state.profile.comparisonWindow;
+  drivingRange.value = String(state.profile.weeklyDrivingMiles);
+  drivingNumber.value = String(state.profile.weeklyDrivingMiles);
+  startCityInput.value = state.profile.startCity;
+  byId('scene-origin').textContent = state.profile.startCity || 'Unspecified';
   efficiencyRange.value = String(state.profile.model3Efficiency);
   byId<HTMLOutputElement>('efficiency-value').value = `${state.profile.model3Efficiency.toFixed(1)} mi/kWh`;
+  for (const [length, input] of Object.entries(flightInputs)) {
+    input.value = String(state.profile.flightsPerYear[length as FlightLengthId]);
+  }
 
   try {
     saveSnapshot(window.localStorage, state.profile, state.aggregate);
@@ -332,31 +500,54 @@ store.subscribe((state) => {
 
   if (!aggregate || !result) return;
   const aiDistance = formatDistance(result.aiMiles.central);
-  const lifestyleDistance = formatDistance(result.lifestyleMiles);
+  const scaledOutputTokens = aggregate.outputTokens * result.windowScale;
+  const scaledInputTokens = aggregate.inputTokens * result.windowScale;
   byId('ai-distance').textContent = aiDistance;
-  byId('life-distance').textContent = lifestyleDistance;
   byId('scene-ai-distance').textContent = aiDistance;
-  byId('scene-life-distance').textContent = lifestyleDistance;
-  byId('energy-readout').textContent = `${formatEnergy(result.energyWh.central)} · ${formatDistance(result.aiMiles.low)}–${formatDistance(result.aiMiles.high)}`;
-  byId('ratio-readout').textContent = Number.isFinite(result.ratio)
-    ? `${Math.round(result.ratio).toLocaleString('en-US')}× farther`
-    : 'Comparison unavailable';
+  byId('energy-readout').textContent = `${formatEnergy(result.energyWh.central)} · ${formatDistance(result.aiMiles.low)}–${formatDistance(result.aiMiles.high)} · ${result.comparisonDays} days`;
+  byId('window-summary').textContent = state.profile.comparisonWindow === 'csv'
+    ? `Matched to ${result.sourceDays}-day CSV`
+    : `${result.comparisonDays}-day normalized view`;
   byId('source-name').textContent = aggregate.sourceName;
-  byId('source-meta').textContent = `${aggregate.rowCount} rows · ${aggregate.requests.toLocaleString('en-US')} requests · ${result.comparisonDays} days`;
-  byId('breakdown-formula').textContent = `${aggregate.outputTokens.toLocaleString('en-US')} output tokens → ${formatEnergy(result.energyWh.central)} → ${aiDistance} at ${state.profile.model3Efficiency.toFixed(1)} mi/kWh.`;
-  byId('input-token-note').textContent = `${aggregate.inputTokens.toLocaleString('en-US')} input tokens were observed but are not modeled by EcoLogits.`;
+  byId('source-meta').textContent = `${aggregate.rowCount} rows · ${aggregate.requests.toLocaleString('en-US')} requests · ${result.sourceDays}-day source`;
+  byId('breakdown-formula').textContent = `${Math.round(scaledOutputTokens).toLocaleString('en-US')} output tokens → ${formatEnergy(result.energyWh.central)} → ${aiDistance} at ${state.profile.model3Efficiency.toFixed(1)} mi/kWh.`;
+  const normalizationNote = result.windowScale === 1
+    ? ''
+    : ` Source usage was normalized by ${result.windowScale.toFixed(3)}×.`;
+  byId('input-token-note').textContent = `${Math.round(scaledInputTokens).toLocaleString('en-US')} input tokens are shown but not modeled by EcoLogits.${normalizationNote}`;
   const fallbackWarning = byId<HTMLParagraphElement>('fallback-warning');
   fallbackWarning.hidden = result.unknownModels.length === 0;
   fallbackWarning.textContent = result.unknownModels.length
     ? `Fallback estimate used for: ${result.unknownModels.join(', ')}.`
     : '';
+  renderImpactCards(state);
   renderModelBreakdown(state);
-  scene.setDistances(result.aiMiles.central, result.lifestyleMiles);
+  renderSelectedComparison(state);
 });
 
+document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((button) => {
+  button.addEventListener('click', () => {
+    activeComparison = button.dataset.comparison as LifestyleMetricId;
+    renderSelectedComparison(store.getState());
+  });
+});
 dietSelect.addEventListener('change', () => updateProfile({ diet: dietSelect.value as DietId }));
+homeSelect.addEventListener('change', () => updateProfile({ homeEnergy: homeSelect.value as HomeEnergyId }));
 regionSelect.addEventListener('change', () => updateProfile({ region: regionSelect.value as RegionId }));
+windowSelect.addEventListener('change', () => updateProfile({ comparisonWindow: windowSelect.value as ComparisonWindowId }));
+drivingRange.addEventListener('input', () => updateProfile({ weeklyDrivingMiles: Number(drivingRange.value) }));
+drivingNumber.addEventListener('input', () => updateProfile({
+  weeklyDrivingMiles: clampNumber(Number(drivingNumber.value), 0, 600),
+}));
+for (const [length, input] of Object.entries(flightInputs)) {
+  input.addEventListener('input', () => updateFlight(length as FlightLengthId, Number(input.value)));
+}
+startCityInput.addEventListener('input', () => updateProfile({ startCity: startCityInput.value.trim() }));
 efficiencyRange.addEventListener('input', () => updateProfile({ model3Efficiency: Number(efficiencyRange.value) }));
+byId('reset-profile').addEventListener('click', () => updateProfile({
+  ...DEFAULT_PROFILE,
+  flightsPerYear: { ...DEFAULT_PROFILE.flightsPerYear },
+}));
 scenarioSelect.addEventListener('change', () => {
   byId('scenario-description').textContent = selectedScenario().description;
 });

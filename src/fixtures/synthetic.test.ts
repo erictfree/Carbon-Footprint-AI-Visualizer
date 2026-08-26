@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { calculateComparison } from '../calc/engine';
+import { DEFAULT_PROFILE } from '../factors/masley';
 import { parseUsageCsvText } from '../ingest/parseUsageCsv';
-import type { LifestyleProfile } from '../types';
 import { SYNTHETIC_SCENARIOS } from './synthetic';
 
-const profile: LifestyleProfile = { diet: 'avg', region: 'us', model3Efficiency: 4 };
+const profile = DEFAULT_PROFILE;
 
 describe('synthetic development scenarios', () => {
   it('cover light, typical, agent-heavy, and fallback outcomes', () => {

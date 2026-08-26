@@ -2,7 +2,7 @@
 
 PromptMiles translates estimated AI energy into the distance a 2024 Tesla Model 3 could travel, then puts that distance beside lifestyle comparisons expressed in the same unit.
 
-This repository currently contains the M1 calculation-trust checkpoint:
+This repository currently contains the M2 profile-and-HUD checkpoint:
 
 - Vite + vanilla TypeScript application shell
 - Procedural Three.js car placeholder and dual-path scene
@@ -11,8 +11,10 @@ This repository currently contains the M1 calculation-trust checkpoint:
 - Complete nine-model Masley / EcoLogits v0.10 factor snapshot with uncertainty ranges
 - Inspectable per-model calculation breakdown and explicit input-token limitation
 - Automatic CSV header detection plus an in-browser manual column mapper
-- Versioned local persistence for the profile and aggregate-only usage results
-- Diet and grid-region controls with live recalculation
+- Versioned local persistence with migration from the original diet-only profile
+- Separate diet, gasoline driving, short/medium/long flight, and home-energy calculations
+- CSV-span, week, and month normalization applied to both AI and lifestyle values
+- Selectable lifestyle paths, a combined total, start city, grid region, and live EV-efficiency controls
 - Installable, offline-capable PWA shell
 - Unit tests for factors, parsing, and conversions
 
