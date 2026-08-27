@@ -1,72 +1,42 @@
-# PromptMiles
+# Burger Works
 
-PromptMiles translates estimated AI energy into the distance a 2024 Tesla Model 3 could travel, then puts that distance beside lifestyle comparisons expressed in the same unit.
-
-This repository currently contains the M3 cinematic checkpoint:
-
-- Vite + vanilla TypeScript application shell
-- Licensed 2024 Model 3 GLB with a procedural fallback and dual-path Three.js scene
-- Nine-second first-load/replay cinematic with car roll-in, headlights, route ignition, and camera pullback
-- Driveway, neighborhood, regional, US-map, and 3D-globe camera staging based on the selected distances
-- A true split-screen global comparison with an independently rendered Austin-local AI viewport and 3D lifestyle globe
-- Offline geographic boundaries, city milestones, and distance-scaled reach rings
-- Smooth live route resizing plus Replay, HUD, and fullscreen keyboard controls
-- Browser-local CSV ingestion and aggregation with PapaParse
-- Four seeded synthetic scenarios spanning light chat, typical use, agent-heavy use, and unknown-model fallback
-- Complete nine-model Masley / EcoLogits v0.10 factor snapshot with uncertainty ranges
-- Inspectable per-model calculation breakdown and explicit input-token limitation
-- Automatic CSV header detection plus an in-browser manual column mapper
-- Versioned local persistence with migration from the original diet-only profile
-- Separate diet, gasoline driving, short/medium/long flight, and home-energy calculations
-- CSV-span, week, and month normalization applied to both AI and lifestyle values
-- Selectable lifestyle paths, a combined total, start city, grid region, and live EV-efficiency controls
-- Installable, offline-capable PWA shell
-- Unit tests for factors, parsing, and conversions
+Burger Works compares estimated AI carbon with lifestyle carbon through a miniature burger factory. The ramps show relative CO₂ flow continuously; the central balance holds the packed totals for the selected comparison window.
 
 ## Run locally
 
 ```bash
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5174
 ```
 
-Run the regression tests and production build:
+Open `http://127.0.0.1:5174/`.
 
-```bash
-npm test
-npm run build
+## What works
+
+- Synthetic light, typical, agent-heavy, billion-token, and unknown-model scenarios
+- Local CSV import with automatic or manual column mapping
+- Masley / EcoLogits model-curve interpolation with central and 95% range estimates
+- Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
+- Slow continuous ramp animation with upright burgers anchored to each conveyor centerline; spacing and travel speed rise with the relative CO₂ rate
+- Packed total units: tiny burger, burger, tray, crate, pallet, and truck
+- Replay-loop restart, side swap, methodology, profile controls, and local persistence
+- Responsive desktop and mobile layouts
+
+## Data format
+
+CSV imports need a date, model, and at least one token column. Common aliases are recognized automatically.
+
+```csv
+timestamp,model,input_tokens,output_tokens,requests
+2026-07-01T12:00:00Z,gpt-5.5,1200,420,1
 ```
 
-Node.js `^20.19.0` or `>=22.12.0` is required by the current Vite release.
+Raw CSV rows remain in the browser and are discarded after aggregation.
 
-## Architecture
+## Methodology
 
-```text
-CSV adapter -> normalized aggregates -> factor engine -> result vectors
-                                                     -> Three.js scene
-Profile controls -> typed store --------------------> HUD + scene
-```
+The AI estimate uses the model curves transcribed from [Andy Masley’s public-domain calculator source](https://andymasley.com/visuals/ai-prompt-footprint-source.txt), based on EcoLogits v0.10. Output-token scenarios are interpolated per model and request; imported input-token totals are displayed but excluded because the source methodology does not currently model input-token processing.
 
-The calculation modules do not depend on the renderer. A future real OpenAI export adapter can therefore replace or supplement the synthetic schema without changing the scene.
+AI energy is converted to carbon using the selected grid intensity. Lifestyle factors are normalized to the same time window. Burger production is a visual metaphor using `1 burger ≈ 3 kg CO₂e`; the displayed kg CO₂e values and AI uncertainty range are authoritative.
 
-## Methodology status
-
-The current factor snapshot comes from [Andy Masley’s public-domain calculator source](https://andymasley.com/visuals/ai-prompt-footprint-source.txt), which uses EcoLogits v0.10 central and 95% interval estimates. PromptMiles interpolates those output-token scenarios per model and request. The published [EcoLogits LLM inference methodology](https://ecologits.ai/latest/methodology/llm_inference/) does not currently model input-token processing, so PromptMiles displays imported input-token totals but excludes them from the estimate. Results remain estimates rather than measurements.
-
-Raw CSV rows are parsed locally and discarded after aggregation. PromptMiles does not upload usage files.
-
-## Map data attribution
-
-The geographic stages are bundled with the application and do not require map tiles, an API key, or a network connection. World boundaries use the Natural Earth 1:110m data distributed by [world-atlas](https://github.com/topojson/world-atlas); US state boundaries use US Census Bureau cartographic boundaries distributed by [us-atlas](https://github.com/topojson/us-atlas). Both distributions use the ISC license.
-
-Reach rings are distance-scaled and centered on the current Austin default. US-map routes are illustrative; global journeys follow a surface-hugging great-circle bearing for the displayed mileage. The short AI journey moves into a separately framed local viewport rather than sharing the globe's coordinate system. Arbitrary-city geocoding is not yet implemented.
-
-## 3D asset attribution
-
-The production car asset is “2024 Tesla Model 3,” credited in its embedded metadata to
-[RBLXSupercars](https://sketchfab.com/RBLXSupercars) and shared on Sketchfab by
-[brandonleong28](https://sketchfab.com/3d-models/tesla-model-3-2024-36c52f3f89f6439c90310f14e8ff33f2).
-It is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and is rescaled,
-reoriented when needed, shadow-enabled, and material-tuned at runtime for PromptMiles.
-
-See [`PromptMiles_PRD_v0.1.docx`](./PromptMiles_PRD_v0.1.docx) for the complete product requirements.
+The original car/globe exploration remains in `src/scene/` and `models/` as legacy prototype material but is no longer loaded by the application.

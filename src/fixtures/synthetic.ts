@@ -6,7 +6,7 @@ interface SyntheticRow {
   requests: number;
 }
 
-export type SyntheticScenarioId = 'typical' | 'light' | 'agent' | 'unknown';
+export type SyntheticScenarioId = 'typical' | 'light' | 'agent' | 'billion' | 'unknown';
 
 export interface SyntheticScenario {
   id: SyntheticScenarioId;
@@ -123,33 +123,54 @@ function createUnknownModelCsv(): string {
   ]);
 }
 
+function createBillionTokenCsv(): string {
+  const rows: SyntheticRow[] = [];
+  for (let day = 1; day <= 30; day += 1) {
+    rows.push({
+      timestamp: `2026-07-${String(day).padStart(2, '0')}T16:00:00Z`,
+      model: 'gpt-5.5',
+      inputTokens: 22_222_222,
+      outputTokens: day === 30 ? 11_111_121 : 11_111_111,
+      requests: 23,
+    });
+  }
+  return rowsToCsv(rows);
+}
+
 export const SYNTHETIC_SCENARIOS: Record<SyntheticScenarioId, SyntheticScenario> = {
   typical: {
     id: 'typical',
     label: 'Typical mixed month',
     description: 'Chat plus five coding sessions across 30 days.',
-    filename: 'promptmiles-synthetic-typical-month.csv',
+    filename: 'burger-works-synthetic-typical-month.csv',
     csv: createSyntheticUsageCsv(),
   },
   light: {
     id: 'light',
     label: 'Light chat week',
     description: 'Two short mini-model replies per day for one week.',
-    filename: 'promptmiles-synthetic-light-week.csv',
+    filename: 'burger-works-synthetic-light-week.csv',
     csv: createLightWeekCsv(),
   },
   agent: {
     id: 'agent',
     label: 'Agent-heavy week',
     description: 'One long coding session per day plus smaller chat use.',
-    filename: 'promptmiles-synthetic-agent-week.csv',
+    filename: 'burger-works-synthetic-agent-week.csv',
     csv: createAgentWeekCsv(),
+  },
+  billion: {
+    id: 'billion',
+    label: 'Billion-token stress test',
+    description: 'A full billion input + output tokens across 30 days to exercise the packed factory scale.',
+    filename: 'burger-works-synthetic-billion-token-month.csv',
+    csv: createBillionTokenCsv(),
   },
   unknown: {
     id: 'unknown',
     label: 'Unknown model fallback',
     description: 'Exercises the visible fallback and warning behavior.',
-    filename: 'promptmiles-synthetic-unknown-model.csv',
+    filename: 'burger-works-synthetic-unknown-model.csv',
     csv: createUnknownModelCsv(),
   },
 };
