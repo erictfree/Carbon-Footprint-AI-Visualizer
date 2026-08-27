@@ -28,14 +28,15 @@ describe('conveyor physics', () => {
     expect(nearGap / farGap).toBeGreaterThan(1.6);
   });
 
-  it('keeps the two lanes mirrored and grows a grounded object with depth', () => {
+  it('keeps the photographed lane asymmetry and grows a grounded object with depth', () => {
     const farLeft = projectBeltPose(0.2, 'left');
     const nearLeft = projectBeltPose(0.8, 'left');
     const nearRight = projectBeltPose(0.8, 'right');
 
     expect(nearLeft.topPct).toBeGreaterThan(farLeft.topPct);
     expect(nearLeft.scale).toBeGreaterThan(farLeft.scale);
-    expect(nearLeft.leftPct + nearRight.leftPct).toBeCloseTo(100, 5);
+    expect(nearLeft.leftPct).toBeCloseTo(21.6, 5);
+    expect(nearRight.leftPct).toBeCloseTo(83.3, 5);
   });
 
   it('follows the calibrated straight centerlines through the off-screen exit', () => {
@@ -45,8 +46,8 @@ describe('conveyor physics', () => {
     const beltSlope = (edge.leftPct - far.leftPct) / (edge.topPct - far.topPct);
     const exitSlope = (exit.leftPct - edge.leftPct) / (exit.topPct - edge.topPct);
 
-    expect(far.leftPct).toBeCloseTo(55.4, 4);
-    expect(edge.leftPct).toBeCloseTo(75, 4);
+    expect(far.leftPct).toBeCloseTo(55.8, 4);
+    expect(edge.leftPct).toBeCloseTo(83.3, 4);
     expect(exit.leftPct).toBeGreaterThan(100);
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
   });
@@ -85,8 +86,8 @@ describe('conveyor physics', () => {
     const centeredNear = projectBeltPose(0.8, 'left');
     const packedNear = projectBeltPose(0.8, 'left', 0, 8.5, -0.5);
 
-    expect(centeredFar.leftPct).toBeCloseTo(44.6, 5);
-    expect(packedFar.leftPct).toBeCloseTo(44.1, 5);
+    expect(centeredFar.leftPct).toBeCloseTo(48.4, 5);
+    expect(packedFar.leftPct).toBeCloseTo(47.9, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 

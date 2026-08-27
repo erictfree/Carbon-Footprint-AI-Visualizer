@@ -12,10 +12,12 @@ const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
 const FAR_SCALE = 0.14;
 const NEAR_SCALE = 1.34;
-const FAR_LEFT_X = 44.6;
-const NEAR_LEFT_X = 25;
-const FAR_RIGHT_X = 55.4;
-const NEAR_RIGHT_X = 75;
+const FAR_LEFT_X = 48.4;
+const NEAR_LEFT_X = 21.6;
+const FAR_RIGHT_X = 55.8;
+// Burger Belt 2 is not a perfect mirror: its lifestyle belt fans much farther
+// toward the right edge in the foreground than the photographed AI belt.
+const NEAR_RIGHT_X = 83.3;
 const BELT_PLANE_END = 0.8;
 const BELT_PERSPECTIVE = 2;
 const WINDOW_PLAYBACK_DURATION_MS = 60_000;
