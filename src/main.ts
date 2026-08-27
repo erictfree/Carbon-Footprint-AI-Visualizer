@@ -484,7 +484,7 @@ function renderComparison(state: AppState): void {
     const markerNote = leftTiming.continuousMarker || rightTiming.continuousMarker
       ? ' One slow marker remains visible.'
       : '';
-    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. The exact ${formatRatio(ratio)} gap fills the busier belt up to ${busyTiming.columnCount} wide before increasing its speed.${markerNote}`;
+    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. The exact ${formatRatio(ratio)} gap uses ${busyTiming.columnCount}-wide rows; belt speed rises only after all ${busyTiming.totalCapacity} positions fill.${markerNote}`;
   } else {
     byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. Output fills rows across each belt before increasing its speed.`;
   }

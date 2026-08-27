@@ -107,9 +107,38 @@ export interface LaneMotionTiming {
 }
 
 /**
+ * Chooses a lane shape that occupies both belt dimensions before asking the
+ * camera-facing motion to get faster. The target aspect ratio mirrors the
+ * physical grid (rows are deeper than the belt is wide), while the minimum
+ * column count guarantees that the requested load fits on the belt.
+ */
+export function columnsForBeltLoad(
+  burgersInWindow: number,
+  rowCapacity: number,
+  maxColumns = 3,
+): number {
+  const safeRowCapacity = Math.max(1, rowCapacity);
+  const safeMaxColumns = Math.max(1, Math.min(3, Math.floor(maxColumns)));
+  const visibleLoad = Math.min(
+    safeRowCapacity * safeMaxColumns,
+    Math.max(1, burgersInWindow),
+  );
+  const minimumColumns = Math.ceil(visibleLoad / safeRowCapacity);
+  const aspectColumns = Math.round(Math.sqrt(
+    visibleLoad * safeMaxColumns / safeRowCapacity,
+  ));
+
+  return Math.min(
+    safeMaxColumns,
+    Math.max(1, minimumColumns, aspectColumns),
+  );
+}
+
+/**
  * Maps one comparison window to one playback minute. Every lane begins at the
- * same one-minute belt speed; output first increases the number of burgers on
- * the belt, then shortens the travel time only after physical headway is full.
+ * same one-minute traversal: additional output occupies more rows and columns
+ * across the finite belt surface. Travel time shortens only after every usable
+ * position is full, preserving the exact launch cadence at higher rates.
  */
 export function laneMotionTiming(
   burgersInWindow: number,
@@ -119,9 +148,10 @@ export function laneMotionTiming(
   if (!Number.isFinite(burgersInWindow) || burgersInWindow < 0.005) return null;
   const safeRowCapacity = Math.max(1, rowCapacity);
   const safeMaxColumns = Math.max(1, Math.min(3, Math.floor(maxColumns)));
-  const columnCount = Math.min(
+  const columnCount = columnsForBeltLoad(
+    burgersInWindow,
+    safeRowCapacity,
     safeMaxColumns,
-    Math.max(1, Math.ceil(burgersInWindow / safeRowCapacity)),
   );
   const visualRatePerSecond = burgersInWindow / (WINDOW_PLAYBACK_DURATION_MS / 1_000);
   const intervalMs = Math.max(16, Math.round(1_000 / visualRatePerSecond));

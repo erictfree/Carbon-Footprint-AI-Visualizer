@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { laneMotionTiming, projectBeltPose, projectWorldProgress } from './conveyorPhysics';
+import {
+  columnsForBeltLoad,
+  laneMotionTiming,
+  projectBeltPose,
+  projectWorldProgress,
+} from './conveyorPhysics';
 
 describe('conveyor physics', () => {
   it('projects the world-space endpoints exactly', () => {
@@ -130,6 +135,34 @@ describe('conveyor physics', () => {
     expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(5_900);
     expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(6_000);
     expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(10);
+  });
+
+  it('uses the full belt surface progressively from one to three columns', () => {
+    expect(columnsForBeltLoad(1, 10, 3)).toBe(1);
+    expect(columnsForBeltLoad(5, 10, 3)).toBe(1);
+    expect(columnsForBeltLoad(8, 10, 3)).toBe(2);
+    expect(columnsForBeltLoad(20, 10, 3)).toBe(2);
+    expect(columnsForBeltLoad(21, 10, 3)).toBe(3);
+    expect(columnsForBeltLoad(300, 10, 3)).toBe(3);
+  });
+
+  it('holds base speed through physical capacity, then scales to 300 per month', () => {
+    const one = laneMotionTiming(1, 10, 3)!;
+    const eight = laneMotionTiming(8, 10, 3)!;
+    const twentyOne = laneMotionTiming(21, 10, 3)!;
+    const thirty = laneMotionTiming(30, 10, 3)!;
+    const threeHundred = laneMotionTiming(300, 10, 3)!;
+
+    expect(one.columnCount).toBe(1);
+    expect(one.travelDurationMs).toBe(60_000);
+    expect(eight.columnCount).toBe(2);
+    expect(eight.travelDurationMs).toBe(60_000);
+    expect(twentyOne.columnCount).toBe(3);
+    expect(twentyOne.travelDurationMs).toBe(60_000);
+    expect(thirty.travelDurationMs).toBeGreaterThanOrEqual(58_000);
+    expect(threeHundred.travelDurationMs).toBeGreaterThanOrEqual(5_800);
+    expect(threeHundred.travelDurationMs).toBeLessThanOrEqual(5_900);
+    expect(threeHundred.visualRatePerSecond).toBe(5);
   });
 
   it('uses multiple columns at the base speed before accelerating', () => {
