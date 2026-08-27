@@ -42,7 +42,7 @@ describe('conveyor physics', () => {
 
     expect(far.leftPct).toBeCloseTo(53.2, 4);
     expect(edge.leftPct).toBeCloseTo(83.2, 4);
-    expect(exit.leftPct).toBeCloseTo(94.1565, 4);
+    expect(exit.leftPct).toBeGreaterThan(120);
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
   });
 
@@ -66,9 +66,28 @@ describe('conveyor physics', () => {
     expect(far.opacity).toBe(1);
     expect(edge.opacity).toBe(1);
     expect(exit.opacity).toBe(1);
-    expect(exit.topPct).toBe(154);
-    expect(exit.scale).toBe(1.75);
+    expect(exit.topPct).toBeGreaterThan(250);
+    expect(exit.scale).toBeGreaterThan(3);
     expect(exit.leftPct).toBeLessThan(edge.leftPct);
+  });
+
+  it('keeps perspective-correct visible headway between consecutive rows', () => {
+    const worldHeadway = 0.1725;
+    const frameStep = 0.0425;
+    const spriteHeightPct = 24.67;
+    const clearance = (backProgress: number, frontProgress: number) => {
+      const back = projectBeltPose(backProgress, 'right');
+      const front = projectBeltPose(frontProgress, 'right');
+      const backBottom = back.topPct + 0.08 * spriteHeightPct * back.scale;
+      const frontTop = front.topPct - 0.92 * spriteHeightPct * front.scale;
+      return frontTop - backBottom;
+    };
+
+    for (let back = 0; back + worldHeadway + frameStep < 0.96; back += frameStep) {
+      const current = clearance(back, back + worldHeadway);
+      const next = clearance(back + frameStep, back + worldHeadway + frameStep);
+      expect(next).toBeGreaterThanOrEqual(current - 0.01);
+    }
   });
 
   it('fills density before increasing belt velocity for extreme rate gaps', () => {

@@ -10,23 +10,19 @@ export interface BeltPose {
 
 const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
-const EXIT_CONTACT_Y = 154;
 const FAR_SCALE = 0.07;
 const NEAR_SCALE = 1.34;
-const EXIT_SCALE = 1.75;
 const FAR_LEFT_X = 46.8;
 const NEAR_LEFT_X = 16.8;
-const EXIT_LEFT_X = 5.8434782609;
 const FAR_RIGHT_X = 53.2;
 const NEAR_RIGHT_X = 83.2;
-const EXIT_RIGHT_X = 94.1565217391;
 const BELT_PLANE_END = 0.8;
+const BELT_PERSPECTIVE = 2;
 const WINDOW_PLAYBACK_DURATION_MS = 60_000;
 const MIN_TRAVEL_DURATION_MS = 450;
 const HEADWAY_MARGIN = 0.2;
 const FAR_COLUMN_SPREAD = 1.2;
 const NEAR_COLUMN_SPREAD = 12;
-const EXIT_COLUMN_SPREAD = 16;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -44,7 +40,7 @@ function mix(from: number, to: number, amount: number): number {
  */
 export function projectWorldProgress(
   worldProgress: number,
-  perspective = 0.42,
+  perspective = BELT_PERSPECTIVE,
 ): number {
   const world = clamp01(worldProgress);
   return world / (1 + perspective * (1 - world));
@@ -56,26 +52,21 @@ export function projectBeltPose(
   columnOffset = 0,
 ): BeltPose {
   const world = clamp01(worldProgress);
-  const onBelt = world <= BELT_PLANE_END;
-  const beltWorld = clamp01(world / BELT_PLANE_END);
-  const beltDepth = projectWorldProgress(beltWorld);
-  const exitProgress = clamp01((world - BELT_PLANE_END) / (1 - BELT_PLANE_END));
-  const nearX = side === 'left' ? NEAR_LEFT_X : NEAR_RIGHT_X;
-  const exitX = side === 'left' ? EXIT_LEFT_X : EXIT_RIGHT_X;
-  const centerLeftPct = onBelt
-    ? mix(side === 'left' ? FAR_LEFT_X : FAR_RIGHT_X, nearX, beltDepth)
-    : mix(nearX, exitX, exitProgress);
-  const columnSpread = onBelt
-    ? mix(FAR_COLUMN_SPREAD, NEAR_COLUMN_SPREAD, beltDepth)
-    : mix(NEAR_COLUMN_SPREAD, EXIT_COLUMN_SPREAD, exitProgress);
+  const beltWorld = world / BELT_PLANE_END;
+  // Do not clamp at the photographed belt edge. Extending the same homography
+  // below the frame prevents a leading burger from decelerating at the exit
+  // while the following burger is still accelerating toward the camera.
+  const beltDepth = beltWorld / (1 + BELT_PERSPECTIVE * (1 - beltWorld));
+  const centerLeftPct = mix(
+    side === 'left' ? FAR_LEFT_X : FAR_RIGHT_X,
+    side === 'left' ? NEAR_LEFT_X : NEAR_RIGHT_X,
+    beltDepth,
+  );
+  const columnSpread = mix(FAR_COLUMN_SPREAD, NEAR_COLUMN_SPREAD, beltDepth);
   const leftPct = centerLeftPct + columnOffset * columnSpread;
-  const topPct = onBelt
-    ? mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth)
-    : mix(NEAR_CONTACT_Y, EXIT_CONTACT_Y, exitProgress);
-  const scale = onBelt
-    ? mix(FAR_SCALE, NEAR_SCALE, beltDepth)
-    : mix(NEAR_SCALE, EXIT_SCALE, exitProgress);
-  const depth = onBelt ? beltDepth : 1 + exitProgress * 0.2;
+  const topPct = mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth);
+  const scale = mix(FAR_SCALE, NEAR_SCALE, beltDepth);
+  const depth = beltDepth;
 
   return {
     leftPct,
