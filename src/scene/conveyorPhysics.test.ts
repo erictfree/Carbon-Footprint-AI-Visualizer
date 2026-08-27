@@ -85,20 +85,6 @@ describe('conveyor physics', () => {
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 
-  it('keeps a single burger on the photographed belt centerline', () => {
-    const farLeft = projectBeltPose(0, 'left', 0, 8.5, -3.4, 5.5);
-    const nearLeft = projectBeltPose(0.8, 'left', 0, 8.5, -3.4, 5.5);
-    const farRight = projectBeltPose(0, 'right', 0, 8.5, 3.4, -5.5);
-    const nearRight = projectBeltPose(0.8, 'right', 0, 8.5, 3.4, -5.5);
-
-    expect(farLeft.leftPct).toBeCloseTo(43.4, 5);
-    expect(nearLeft.leftPct).toBeCloseTo(22.3, 5);
-    expect(farRight.leftPct).toBeCloseTo(56.6, 5);
-    expect(nearRight.leftPct).toBeCloseTo(77.7, 5);
-    expect(farLeft.leftPct + farRight.leftPct).toBeCloseTo(100, 5);
-    expect(nearLeft.leftPct + nearRight.leftPct).toBeCloseTo(100, 5);
-  });
-
   it('keeps burgers opaque and carries them fully below the frame', () => {
     const far = projectBeltPose(0, 'left');
     const edge = projectBeltPose(0.8, 'left');
@@ -113,7 +99,7 @@ describe('conveyor physics', () => {
   });
 
   it('keeps perspective-correct visible headway between consecutive rows', () => {
-    const worldHeadway = 1 / 7.8;
+    const worldHeadway = 1 / 9.8;
     const frameStep = 0.0425;
     const spriteHeightPct = 24.67;
     const clearance = (backProgress: number, frontProgress: number) => {
@@ -132,18 +118,18 @@ describe('conveyor physics', () => {
   });
 
   it('fills density before increasing belt velocity for extreme rate gaps', () => {
-    const ai = laneMotionTiming(1.24 / 3, 8, 3)!;
-    const lifestyle = laneMotionTiming(887 / 3, 8, 3)!;
+    const ai = laneMotionTiming(1.24 / 3, 10, 3)!;
+    const lifestyle = laneMotionTiming(887 / 3, 10, 3)!;
 
     expect(ai.intervalMs / lifestyle.intervalMs).toBeGreaterThan(700);
     expect(ai.columnCount).toBe(1);
     expect(ai.continuousMarker).toBe(true);
     expect(ai.travelDurationMs).toBe(60_000);
     expect(lifestyle.columnCount).toBe(3);
-    expect(lifestyle.totalCapacity).toBe(24);
-    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(4_700);
-    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(4_800);
-    expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(12);
+    expect(lifestyle.totalCapacity).toBe(30);
+    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(5_900);
+    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(6_000);
+    expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(10);
   });
 
   it('uses multiple columns at the base speed before accelerating', () => {

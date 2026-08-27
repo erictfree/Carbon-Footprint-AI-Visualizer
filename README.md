@@ -18,7 +18,7 @@ Open `http://127.0.0.1:5174/`.
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
 - Straight, perspective-matched twin conveyors with identical burgers; a projective belt-plane transform makes distant motion slower and foreground motion faster, while exact one-minute cadence and density-first lane velocity turn extreme CO₂ gaps into visibly different production lines
-- Responsive physical headway: up to eight three-wide rows on desktop and three two-wide rows on compact screens, with size-aware column spacing, legible distant burgers, and full opacity until sprites run beyond the bottom edge
+- Responsive physical headway: up to ten three-wide rows on desktop and three two-wide rows on compact screens, with size-aware column spacing, legible distant burgers, and full opacity until sprites run beyond the bottom edge
 - A persistent slow-lane marker keeps sub-one-burger output visible without changing the authoritative numeric total
 - Immediate steady-state line density plus exact burger-equivalent output for the selected window
 - Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
