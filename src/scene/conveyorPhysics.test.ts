@@ -92,7 +92,7 @@ describe('conveyor physics', () => {
     expect(packedRailCenterOffset('left', 2)).toBe(0);
     expect(packedRailCenterOffset('right', 2)).toBe(0);
     expect(packedRailCenterOffset('left', 3)).toBe(-2.4);
-    expect(packedRailCenterOffset('right', 3)).toBe(0);
+    expect(packedRailCenterOffset('right', 3)).toBe(-3.8);
 
     const centeredFar = projectBeltPose(0, 'left');
     const packedFar = projectBeltPose(

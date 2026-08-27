@@ -47,7 +47,7 @@ export function packedRailCenterOffset(
   columnCount: number,
 ): number {
   if (columnCount < 3) return 0;
-  return side === 'left' ? -2.4 : 0;
+  return side === 'left' ? -2.4 : -3.8;
 }
 
 /**
