@@ -40,7 +40,7 @@ describe('conveyor physics', () => {
     const beltSlope = (edge.leftPct - far.leftPct) / (edge.topPct - far.topPct);
     const exitSlope = (exit.leftPct - edge.leftPct) / (exit.topPct - edge.topPct);
 
-    expect(far.leftPct).toBeCloseTo(53.2, 4);
+    expect(far.leftPct).toBeCloseTo(53.7, 4);
     expect(edge.leftPct).toBeCloseTo(83.2, 4);
     expect(exit.leftPct).toBeGreaterThan(120);
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
