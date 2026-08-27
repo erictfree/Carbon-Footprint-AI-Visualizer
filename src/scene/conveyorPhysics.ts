@@ -33,12 +33,19 @@ function smoothstep(from: number, to: number, value: number): number {
 
 /**
  * Projects constant world-space travel onto the photographed belt plane.
- * The fractional-linear mapping is a simple pinhole-camera homography: equal
- * world distances open up gradually as they approach the viewer.
+ * A pinhole-camera homography supplies the perspective, while a small
+ * perceptual compensation counters the foreground speed-up that otherwise
+ * makes a constant belt look as though it accelerates toward the viewer.
  */
-export function projectWorldProgress(worldProgress: number, perspective = 0.42): number {
+export function projectWorldProgress(
+  worldProgress: number,
+  perspective = 0.42,
+  perceptualCompensation = 0.45,
+): number {
   const world = clamp01(worldProgress);
-  return world / (1 + perspective * (1 - world));
+  const pinhole = world / (1 + perspective * (1 - world));
+  const compensated = 1 - (1 - world) ** 1.35;
+  return mix(pinhole, compensated, clamp01(perceptualCompensation));
 }
 
 export function projectBeltPose(worldProgress: number, side: BeltSide): BeltPose {
@@ -66,6 +73,6 @@ export function physicalLaunchInterval(
   laneCapacity: number,
 ): number {
   const safeCapacity = Math.max(1, laneCapacity);
-  const capacityInterval = travelDurationMs / Math.max(1, safeCapacity - 0.5);
+  const capacityInterval = travelDurationMs / Math.max(1, safeCapacity - 0.75);
   return Math.max(requestedIntervalMs, Math.ceil(capacityInterval));
 }

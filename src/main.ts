@@ -184,7 +184,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>Both lanes share one fixed-speed clock. Constant world-space travel is projected onto the photographed belt plane; launch cadence is log-compressed and headway-capped so the lines stay readable.</dd></div>
+      <div><dt>Visual scale</dt><dd>Both lanes share one fixed-speed clock. World-space travel is projected onto the belt plane with slight foreground velocity compensation; launch cadence is log-compressed and headway-capped.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>

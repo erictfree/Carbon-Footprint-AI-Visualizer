@@ -17,7 +17,7 @@ Open `http://127.0.0.1:5174/`.
 - Local CSV import with automatic or manual column mapping
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
-- Straight, perspective-matched twin conveyors with identical burgers; constant world-space travel is projected onto the photographed belt plane, while log-compressed launch cadence and physical headway show the relative CO₂ rate
+- Straight, perspective-matched twin conveyors with identical burgers; constant world-space travel is projected onto the photographed belt plane with perceptual foreground compensation, while log-compressed launch cadence and physical headway show the relative CO₂ rate
 - Immediate steady-state line density plus exact burger-equivalent output for the selected window
 - Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
 - Responsive desktop and mobile layouts
