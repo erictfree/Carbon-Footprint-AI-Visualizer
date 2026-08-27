@@ -14,10 +14,11 @@ const FAR_SCALE = 0.14;
 const NEAR_SCALE = 1.34;
 const FAR_LEFT_X = 48.4;
 const NEAR_LEFT_X = 21.6;
-const FAR_RIGHT_X = 55.8;
-// Burger Belt 2 is not a perfect mirror: its lifestyle belt fans much farther
-// toward the right edge in the foreground than the photographed AI belt.
-const NEAR_RIGHT_X = 83.3;
+const FAR_RIGHT_X = 55.2;
+// The arcade background is less asymmetric than Burger Belt 2. Its lifestyle
+// belt still fans right, but the usable surface center finishes several points
+// left of the legacy trajectory.
+const NEAR_RIGHT_X = 80.8;
 const BELT_PLANE_END = 0.8;
 const BELT_PERSPECTIVE = 2;
 export const ROUND_PLAYBACK_DURATION_MS = 48_814;
@@ -46,7 +47,7 @@ export function packedRailCenterOffset(
   columnCount: number,
 ): number {
   if (columnCount < 3) return 0;
-  return side === 'left' ? -2.4 : 0.6;
+  return side === 'left' ? -2.4 : 0;
 }
 
 /**
