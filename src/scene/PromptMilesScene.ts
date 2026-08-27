@@ -6,7 +6,6 @@ import {
   createGeoMapLayers,
   EARTH_RADIUS_MILES,
   GLOBE_CENTER,
-  GLOBE_RADIUS,
   globePositionAtDistance,
   mapRadiusForMiles,
   updateGeoMapLayer,
@@ -22,7 +21,6 @@ const CAR_LENGTH = 4.45;
 const ROUTE_SEGMENTS = 96;
 const ROUTE_TWEEN_MS = 620;
 const CINEMATIC_DURATION_MS = 9_000;
-const GLOBAL_AI_INSET_CENTER = new THREE.Vector3(-1, 3.15, 0.35);
 
 type DistanceStageId = 'driveway' | 'neighborhood' | 'regional' | 'continental' | 'global';
 
@@ -79,10 +77,10 @@ const DISTANCE_STAGES: Record<DistanceStageId, DistanceStage> = {
   global: {
     id: 'global',
     label: '3D globe scale',
-    note: 'AI local lens · lifestyle geodesic journey',
+    note: 'Separate Austin viewport · surface geodesic globe',
     mapMode: 'world',
-    camera: [11.7, 8.2, 15.6],
-    target: [2, 3.05, 0],
+    camera: [12.2, 8, 14.8],
+    target: [GLOBE_CENTER.x, GLOBE_CENTER.y, GLOBE_CENTER.z],
   },
 };
 
@@ -283,42 +281,6 @@ function visualLength(miles: number): number {
   return THREE.MathUtils.clamp(3.2 + Math.log10(Math.max(0, miles) * 12 + 1) * 4.1, 3.2, 28);
 }
 
-function createSceneLabel(text: string, color: number, width = 320): THREE.Sprite {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = 72;
-  const context = canvas.getContext('2d');
-  if (context) {
-    const accent = new THREE.Color(color).getStyle();
-    context.fillStyle = 'rgba(5, 18, 26, 0.9)';
-    context.beginPath();
-    context.roundRect(3, 5, width - 6, 62, 18);
-    context.fill();
-    context.strokeStyle = accent;
-    context.globalAlpha = 0.72;
-    context.lineWidth = 2;
-    context.stroke();
-    context.globalAlpha = 1;
-    context.fillStyle = '#e8f8f7';
-    context.font = '700 24px Inter, system-ui, sans-serif';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(text, width / 2, 36);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.minFilter = THREE.LinearFilter;
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(2.2, 0.5, 1);
-  return sprite;
-}
-
 function orientToSurface(object: THREE.Object3D, position: THREE.Vector3): void {
   const normal = position.clone().sub(GLOBE_CENTER).normalize();
   object.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
@@ -329,6 +291,13 @@ export class PromptMilesScene {
   private readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: OrbitControls;
+  private readonly localInsetElement: HTMLElement;
+  private readonly localInsetDistance: HTMLElement;
+  private readonly localInsetViewport: HTMLElement;
+  private readonly localScene = new THREE.Scene();
+  private readonly localCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
+  private readonly localRenderer: THREE.WebGLRenderer;
+  private readonly localRouteGroup = new THREE.Group();
   private readonly car = new THREE.Group();
   private readonly carModel = new THREE.Group();
   private readonly fallbackCar = createFallbackCar();
@@ -348,6 +317,7 @@ export class PromptMilesScene {
   private usMapVisibility = 0;
   private worldMapVisibility = 0;
   private carVisualScale = 1;
+  private localAuraMaterial: THREE.MeshBasicMaterial | null = null;
   private cameraTransition: CameraTransition | null = null;
   private cinematicStartedAt: number | null = null;
   private cinematicLabelsRevealed = false;
@@ -368,6 +338,34 @@ export class PromptMilesScene {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.domElement.setAttribute('aria-hidden', 'true');
     this.container.appendChild(this.renderer.domElement);
+
+    this.localInsetElement = document.createElement('section');
+    this.localInsetElement.className = 'global-local-inset';
+    this.localInsetElement.setAttribute('aria-hidden', 'true');
+    this.localInsetElement.innerHTML = `
+      <header>
+        <span>AI journey · Austin</span>
+        <strong>—</strong>
+      </header>
+      <div class="global-local-inset__viewport"></div>
+      <footer>Independent local scale</footer>
+    `;
+    this.localInsetDistance = this.localInsetElement.querySelector('strong')!;
+    this.localInsetViewport = this.localInsetElement.querySelector('.global-local-inset__viewport')!;
+    this.localRenderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance',
+    });
+    this.localRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.localRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.localRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.localRenderer.toneMappingExposure = 1.08;
+    this.localRenderer.setClearColor(0x000000, 0);
+    this.localRenderer.domElement.setAttribute('aria-hidden', 'true');
+    this.localInsetViewport.appendChild(this.localRenderer.domElement);
+    this.container.appendChild(this.localInsetElement);
+    this.setupLocalInsetScene();
     this.timer.connect(document);
 
     const environment = new RoomEnvironment();
@@ -450,6 +448,7 @@ export class PromptMilesScene {
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
+    this.resizeObserver.observe(this.localInsetElement);
     this.resize();
     this.animate();
   }
@@ -465,6 +464,100 @@ export class PromptMilesScene {
       this.car.add(light, target);
       this.headlights.push(light);
     }
+  }
+
+  private setupLocalInsetScene(): void {
+    this.localScene.fog = new THREE.FogExp2(0x06131c, 0.075);
+    const ambient = new THREE.HemisphereLight(0x9ee8e5, 0x071018, 2.2);
+    const key = new THREE.DirectionalLight(0xdfffff, 2.6);
+    key.position.set(2.5, 7, 4);
+    this.localScene.add(ambient, key);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(9, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0x071820,
+        roughness: 0.92,
+        metalness: 0.04,
+      }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.02;
+    this.localScene.add(ground);
+
+    const grid = new THREE.GridHelper(9, 18, 0x1a7477, 0x12353d);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.26;
+    this.localScene.add(grid, this.localRouteGroup);
+
+    this.localCamera.position.set(0.45, 5.1, 7.2);
+    this.localCamera.lookAt(0.35, 0.12, 0);
+  }
+
+  private setLocalAiDistance(miles: number): void {
+    for (const child of [...this.localRouteGroup.children]) {
+      disposeObject(child);
+      this.localRouteGroup.remove(child);
+    }
+    this.localAuraMaterial = null;
+    this.localInsetDistance.textContent = `${Math.round(Math.max(0, miles)).toLocaleString('en-US')} mi`;
+    if (miles <= 0) return;
+
+    const visualDistance = THREE.MathUtils.clamp(2.15 + Math.log10(miles + 1) * 0.9, 2.35, 4.8);
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-2.35, 0.1, 0.72),
+      new THREE.Vector3(-1.15, 0.11, 0.28),
+      new THREE.Vector3(0.15, 0.13, -0.34),
+      new THREE.Vector3(visualDistance - 1.2, 0.15, -0.6),
+    ], false, 'catmullrom', 0.45);
+
+    const auraMaterial = new THREE.MeshBasicMaterial({
+      color: 0x42e8df,
+      transparent: true,
+      opacity: 0.22,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const aura = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.1, 8, false), auraMaterial);
+    this.localRouteGroup.add(aura);
+    this.localAuraMaterial = auraMaterial;
+
+    const coreMaterial = new THREE.MeshStandardMaterial({
+      color: 0x55f2ea,
+      emissive: 0x42e8df,
+      emissiveIntensity: 2.4,
+      roughness: 0.3,
+    });
+    const core = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.052, 8, false), coreMaterial);
+    this.localRouteGroup.add(core);
+
+    const markerMaterial = new THREE.MeshStandardMaterial({
+      color: 0xdffffd,
+      emissive: 0x42e8df,
+      emissiveIntensity: 2.8,
+    });
+    [0, 0.33, 0.66, 1].forEach((progress, index) => {
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(index === 0 || index === 3 ? 0.085 : 0.045, 18, 12),
+        markerMaterial,
+      );
+      marker.position.copy(curve.getPoint(progress));
+      this.localRouteGroup.add(marker);
+    });
+
+    const endpoint = curve.getPoint(1);
+    const endpointRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.12, 0.18, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x42e8df,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+      }),
+    );
+    endpointRing.rotation.x = -Math.PI / 2;
+    endpointRing.position.set(endpoint.x, 0.08, endpoint.z);
+    this.localRouteGroup.add(endpointRing);
   }
 
   private maybeAutoReplay(): void {
@@ -568,17 +661,18 @@ export class PromptMilesScene {
     };
 
     let routeIndex = 0;
-    if (aiMiles > 0) {
+    this.setLocalAiDistance(aiMiles);
+    if (aiMiles > 0 && nextStage.mapMode !== 'world') {
       const aiLane = nextStage.mapMode === 'none' ? -0.52 : -1;
       addRoute(
-        this.createRoute(aiMiles, aiLane, 0x42e8df, 0.5, nextStage.mapMode, 'ai'),
+        this.createRoute(aiMiles, aiLane, 0x42e8df, 0.5, nextStage.mapMode),
         previousLengths[routeIndex],
       );
       routeIndex += 1;
     }
     if (lifestyleMiles > 0) {
       addRoute(
-        this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44, nextStage.mapMode, 'lifestyle'),
+        this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44, nextStage.mapMode),
         previousLengths[routeIndex],
       );
     }
@@ -610,12 +704,9 @@ export class PromptMilesScene {
     color: number,
     width: number,
     mapMode: GeoMapMode,
-    role: 'ai' | 'lifestyle',
   ): THREE.Group {
     if (mapMode === 'world') {
-      return role === 'ai'
-        ? this.createGlobalAiInset(miles, color)
-        : this.createGlobeRoute(miles, color, width);
+      return this.createGlobeRoute(miles, color, width);
     }
     const mappedRadius = mapRadiusForMiles(miles, mapMode);
     const length = mapMode === 'none'
@@ -746,96 +837,6 @@ export class PromptMilesScene {
     return route;
   }
 
-  private createGlobalAiInset(miles: number, color: number): THREE.Group {
-    const route = new THREE.Group();
-    route.name = `${miles.toFixed(1)} mile Austin local lens`;
-    route.userData.disableScaleTween = true;
-    route.userData.visualLength = Math.max(miles, 0.001);
-
-    const lens = new THREE.Group();
-    lens.position.copy(GLOBAL_AI_INSET_CENTER);
-    lens.lookAt(new THREE.Vector3().fromArray(DISTANCE_STAGES.global.camera));
-    route.add(lens);
-
-    const discMaterial = new THREE.MeshBasicMaterial({
-      color: 0x061821,
-      transparent: true,
-      opacity: 0.8,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.35, 72), discMaterial);
-    disc.userData.routeProgress = 0.06;
-    lens.add(disc);
-
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.34,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    [0.42, 0.82, 1.28].forEach((radius, index) => {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.012, radius + 0.012, 72), ringMaterial);
-      ring.position.z = 0.018;
-      ring.userData.routeProgress = 0.12 + index * 0.04;
-      lens.add(ring);
-    });
-
-    const localLength = THREE.MathUtils.clamp(0.72 + Math.log10(miles + 1) * 0.58, 0.78, 1.55);
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.72, -0.28, 0.065),
-      new THREE.Vector3(-0.2, -0.08, 0.09),
-      new THREE.Vector3(localLength * 0.28, 0.18, 0.1),
-      new THREE.Vector3(localLength * 0.52, 0.46, 0.11),
-    ]);
-    const auraMaterial = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.2,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const aura = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, 0.11, 8, false), auraMaterial);
-    lens.add(aura);
-
-    const pathMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0b5659,
-      emissive: color,
-      emissiveIntensity: 1.6,
-      transparent: true,
-      opacity: 0.96,
-      roughness: 0.45,
-    });
-    const path = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, 0.045, 8, false), pathMaterial);
-    lens.add(path);
-
-    const markerMaterial = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 4,
-      transparent: true,
-      opacity: 0.96,
-    });
-    [0, 1].forEach((progress) => {
-      const marker = new THREE.Mesh(new THREE.SphereGeometry(progress === 0 ? 0.095 : 0.075, 18, 12), markerMaterial);
-      marker.position.copy(curve.getPoint(progress));
-      marker.userData.routeProgress = progress === 0 ? 0.18 : 0.94;
-      lens.add(marker);
-    });
-
-    const label = createSceneLabel(`AI · AUSTIN · ${Math.round(miles).toLocaleString('en-US')} MI`, color);
-    label.position.copy(GLOBAL_AI_INSET_CENTER).add(new THREE.Vector3(0, 1.65, 0.2));
-    label.userData.routeProgress = 0.35;
-    route.add(label);
-
-    route.userData.auraMaterial = auraMaterial;
-    route.userData.markerMaterial = markerMaterial;
-    route.userData.revealMeshes = [aura, path];
-    return route;
-  }
-
   private createGlobeRoute(miles: number, color: number, width: number): THREE.Group {
     const route = new THREE.Group();
     route.name = `${miles.toFixed(1)} mile globe journey`;
@@ -848,26 +849,26 @@ export class PromptMilesScene {
     const points: THREE.Vector3[] = [];
     for (let index = 0; index <= 160; index += 1) {
       const progress = index / 160;
-      const altitude = 0.1 + Math.pow(Math.sin(Math.PI * progress), 1.25) * 0.27;
+      const altitude = 0.045 + Math.pow(Math.sin(Math.PI * progress), 1.25) * 0.065;
       points.push(globePositionAtDistance(renderedMiles * progress, bearing, altitude));
     }
     const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.45);
-    const routeRadius = Math.max(0.035, width * 0.11);
+    const routeRadius = Math.max(0.024, width * 0.065);
 
     const auraMaterial = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.13,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    const aura = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, routeRadius * 2.4, 8, false), auraMaterial);
+    const aura = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, routeRadius * 1.85, 8, false), auraMaterial);
     route.add(aura);
 
     const pathMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(color).lerp(new THREE.Color(0x06131d), 0.62),
       emissive: color,
-      emissiveIntensity: 1.18,
+      emissiveIntensity: 0.88,
       transparent: true,
       opacity: 0.98,
       roughness: 0.46,
@@ -886,7 +887,7 @@ export class PromptMilesScene {
     });
     [0, 0.25, 0.5, 0.75, 1].forEach((progress, index) => {
       const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(index === 0 || index === 4 ? 0.105 : 0.055, 20, 14),
+        new THREE.SphereGeometry(index === 0 || index === 4 ? 0.07 : 0.038, 20, 14),
         markerMaterial,
       );
       marker.position.copy(curve.getPoint(progress));
@@ -913,17 +914,11 @@ export class PromptMilesScene {
     }
 
     const endpoint = curve.getPoint(1);
-    const endpointRing = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 10, 44), markerMaterial);
+    const endpointRing = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.018, 10, 40), markerMaterial);
     endpointRing.position.copy(endpoint);
     orientToSurface(endpointRing, endpoint);
     endpointRing.userData.routeProgress = 0.96;
     route.add(endpointRing);
-
-    const label = createSceneLabel(`LIFESTYLE · ${Math.round(miles).toLocaleString('en-US')} MI`, color);
-    label.position.copy(GLOBE_CENTER).add(new THREE.Vector3(0.25, GLOBE_RADIUS + 0.62, 0.15));
-    label.scale.set(2.45, 0.55, 1);
-    label.userData.routeProgress = 0.98;
-    route.add(label);
 
     route.userData.auraMaterial = auraMaterial;
     route.userData.markerMaterial = markerMaterial;
@@ -1093,6 +1088,9 @@ export class PromptMilesScene {
     if (this.cinematicStartedAt !== null) {
       this.headlights.forEach((light) => { light.intensity *= this.carVisualScale; });
     }
+
+    this.localInsetElement.style.opacity = this.worldMapVisibility.toFixed(3);
+    this.localInsetElement.style.visibility = this.worldMapVisibility > 0.01 ? 'visible' : 'hidden';
   }
 
   private resize(): void {
@@ -1101,6 +1099,42 @@ export class PromptMilesScene {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+
+    const localWidth = Math.max(1, this.localInsetViewport.clientWidth);
+    const localHeight = Math.max(1, this.localInsetViewport.clientHeight);
+    this.localCamera.aspect = localWidth / localHeight;
+    this.localCamera.updateProjectionMatrix();
+    this.localRenderer.setSize(localWidth, localHeight, false);
+  }
+
+  private renderMainScene(): void {
+    const width = Math.max(1, this.container.clientWidth);
+    const height = Math.max(1, this.container.clientHeight);
+    const containerBounds = this.container.getBoundingClientRect();
+    const insetBounds = this.localInsetElement.getBoundingClientRect();
+    const desiredSplit = THREE.MathUtils.clamp(
+      insetBounds.right - containerBounds.left + 24,
+      0,
+      Math.max(0, width - 360),
+    );
+    const split = Math.round(desiredSplit * eased(this.worldMapVisibility));
+    const viewWidth = Math.max(1, width - split);
+    const nextAspect = viewWidth / height;
+    if (Math.abs(this.camera.aspect - nextAspect) > 0.001) {
+      this.camera.aspect = nextAspect;
+      this.camera.updateProjectionMatrix();
+    }
+
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, width, height);
+    this.renderer.clear();
+    if (split > 1) {
+      this.renderer.setViewport(split, 0, viewWidth, height);
+      this.renderer.setScissor(split, 0, viewWidth, height);
+      this.renderer.setScissorTest(true);
+    }
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setScissorTest(false);
   }
 
   private animate = (timestamp?: number): void => {
@@ -1125,8 +1159,14 @@ export class PromptMilesScene {
       if (aura) aura.opacity = 0.15 + Math.sin(elapsed * 1.2 + index * 1.7) * 0.025;
       if (markers) markers.emissiveIntensity = 3.8 + Math.sin(elapsed * 1.8 + index) * 0.7;
     });
+    if (this.localAuraMaterial) {
+      this.localAuraMaterial.opacity = 0.2 + Math.sin(elapsed * 1.5) * 0.035;
+    }
     this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    this.renderMainScene();
+    if (this.worldMapVisibility > 0.01) {
+      this.localRenderer.render(this.localScene, this.localCamera);
+    }
   };
 
   dispose(): void {
@@ -1136,7 +1176,9 @@ export class PromptMilesScene {
     this.timer.dispose();
     this.controls.dispose();
     disposeObject(this.car);
+    disposeObject(this.localScene);
     this.environmentTexture?.dispose();
+    this.localRenderer.dispose();
     this.renderer.dispose();
     this.container.replaceChildren();
   }

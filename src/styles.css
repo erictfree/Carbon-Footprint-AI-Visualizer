@@ -91,6 +91,68 @@ a:focus-visible {
   height: 100%;
 }
 
+.global-local-inset {
+  position: absolute;
+  z-index: 4;
+  top: 24%;
+  left: 496px;
+  width: clamp(190px, 16vw, 280px);
+  aspect-ratio: 1.12;
+  overflow: hidden;
+  color: var(--ink);
+  border: 1px solid rgba(66, 232, 223, 0.34);
+  border-radius: 16px;
+  background: linear-gradient(155deg, rgba(8, 29, 38, 0.96), rgba(3, 12, 19, 0.94));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 0 34px rgba(66, 232, 223, 0.055);
+  pointer-events: none;
+  transition: left 680ms cubic-bezier(0.22, 1, 0.36, 1), width 680ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.global-local-inset header,
+.global-local-inset footer {
+  position: absolute;
+  z-index: 2;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.global-local-inset header {
+  top: 12px;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.global-local-inset header span,
+.global-local-inset footer {
+  color: #78929a;
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.global-local-inset header strong {
+  color: #cffffb;
+  font-size: 13px;
+}
+
+.global-local-inset footer {
+  bottom: 11px;
+  justify-content: flex-end;
+}
+
+.global-local-inset__viewport {
+  position: absolute;
+  inset: 0;
+}
+
+.app-shell.hud-hidden .global-local-inset {
+  left: clamp(36px, 7vw, 120px);
+  width: clamp(240px, 18vw, 340px);
+}
+
 .scene-vignette {
   pointer-events: none;
   background:
@@ -1177,7 +1239,8 @@ input[type="range"] {
   .scene-origin,
   .scene-stage,
   .scene-cinematic-status,
-  .scene-hint {
+  .scene-hint,
+  .global-local-inset {
     display: none;
   }
 

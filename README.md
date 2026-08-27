@@ -8,7 +8,7 @@ This repository currently contains the M3 cinematic checkpoint:
 - Licensed 2024 Model 3 GLB with a procedural fallback and dual-path Three.js scene
 - Nine-second first-load/replay cinematic with car roll-in, headlights, route ignition, and camera pullback
 - Driveway, neighborhood, regional, US-map, and 3D-globe camera staging based on the selected distances
-- A side-by-side global comparison with an Austin-scale AI lens and a true great-circle lifestyle journey
+- A true split-screen global comparison with an independently rendered Austin-local AI viewport and 3D lifestyle globe
 - Offline geographic boundaries, city milestones, and distance-scaled reach rings
 - Smooth live route resizing plus Replay, HUD, and fullscreen keyboard controls
 - Browser-local CSV ingestion and aggregation with PapaParse
@@ -59,7 +59,7 @@ Raw CSV rows are parsed locally and discarded after aggregation. PromptMiles doe
 
 The geographic stages are bundled with the application and do not require map tiles, an API key, or a network connection. World boundaries use the Natural Earth 1:110m data distributed by [world-atlas](https://github.com/topojson/world-atlas); US state boundaries use US Census Bureau cartographic boundaries distributed by [us-atlas](https://github.com/topojson/us-atlas). Both distributions use the ISC license.
 
-Reach rings are distance-scaled and centered on the current Austin default. US-map routes are illustrative; global journeys follow a great-circle bearing for the displayed mileage. The short AI journey moves into a labeled local lens rather than being falsely enlarged across the globe. Arbitrary-city geocoding is not yet implemented.
+Reach rings are distance-scaled and centered on the current Austin default. US-map routes are illustrative; global journeys follow a surface-hugging great-circle bearing for the displayed mileage. The short AI journey moves into a separately framed local viewport rather than sharing the globe's coordinate system. Arbitrary-city geocoding is not yet implemented.
 
 ## 3D asset attribution
 

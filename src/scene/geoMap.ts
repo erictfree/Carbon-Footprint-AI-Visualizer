@@ -221,7 +221,6 @@ function createLabelMaterial(label: string, origin: boolean, depthTest = false):
 function addGlobeCities(layer: GeoMapLayer, cities: City[]): void {
   cities.forEach((city) => {
     const surface = globePosition(city.latitude, city.longitude, city.origin ? 0.12 : 0.075);
-    const normal = surface.clone().sub(GLOBE_CENTER).normalize();
     const dotMaterial = new THREE.MeshBasicMaterial({
       color: city.origin ? 0x42e8df : 0x7aa7ac,
       transparent: true,
@@ -237,13 +236,6 @@ function addGlobeCities(layer: GeoMapLayer, cities: City[]): void {
     dot.position.copy(surface);
     layer.group.add(dot);
     layer.materials.push(dotMaterial);
-
-    const labelMaterial = createLabelMaterial(city.label, city.origin === true, true);
-    const label = new THREE.Sprite(labelMaterial);
-    label.position.copy(surface).addScaledVector(normal, city.origin ? 0.38 : 0.23);
-    label.scale.set(city.origin ? 1.65 : 1.18, city.origin ? 0.41 : 0.3, 1);
-    layer.group.add(label);
-    layer.materials.push(labelMaterial);
   });
 }
 
@@ -319,16 +311,10 @@ export function createGeoMapLayers(): { us: GeoMapLayer; world: GeoMapLayer } {
   );
   const land = mesh(worldTopology, worldTopology.objects.land as GeometryObject);
 
-  const oceanMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x010a0f,
-    emissive: 0x03151c,
-    emissiveIntensity: 0.3,
+  const oceanMaterial = new THREE.MeshBasicMaterial({
+    color: 0x04141c,
     transparent: true,
     opacity: 0,
-    roughness: 0.96,
-    metalness: 0,
-    clearcoat: 0.08,
-    clearcoatRoughness: 0.92,
     depthWrite: true,
   });
   oceanMaterial.userData.baseOpacity = 0.96;
