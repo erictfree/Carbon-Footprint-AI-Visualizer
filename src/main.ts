@@ -290,6 +290,7 @@ let hasPlayedInitialReplay = false;
 interface ConveyorBurger {
   columnOffset: number;
   element: HTMLImageElement;
+  farCenterOffsetPct: number;
   side: BeltSide;
   bornAt: number;
   spriteWidthPct: number;
@@ -323,6 +324,11 @@ function columnOffsetForIndex(index: number, columnCount: number): number {
   if (columnCount <= 1) return 0;
   if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
   return [-1, 0, 1][index % 3] ?? 0;
+}
+
+function railCenterOffsetForLane(side: BeltSide, columnCount: number): number {
+  if (columnCount < 3) return 0;
+  return side === 'left' ? -0.5 : 0.5;
 }
 
 function selectedScenario() {
@@ -518,6 +524,7 @@ function createBurger(
   bornAt: number,
   travelDurationMs: number,
   columnOffset: number,
+  columnCount: number,
 ): ConveyorBurger {
   const item = document.createElement('img');
   item.className = `stream-item stream-item--${side}`;
@@ -532,6 +539,7 @@ function createBurger(
   const burger = {
     columnOffset,
     element: item,
+    farCenterOffsetPct: railCenterOffsetForLane(side, columnCount),
     side,
     bornAt,
     spriteWidthPct,
@@ -554,6 +562,7 @@ function renderConveyor(now: number, keepRunning = true): void {
             lane.nextSpawnAt,
             lane.travelDurationMs,
             columnOffsetForIndex(column, lane.columnCount),
+            lane.columnCount,
           );
         }
       }
@@ -574,6 +583,7 @@ function renderConveyor(now: number, keepRunning = true): void {
       burger.side,
       burger.columnOffset,
       burger.spriteWidthPct,
+      burger.farCenterOffsetPct,
     );
     burger.element.style.left = `${pose.leftPct}%`;
     burger.element.style.top = `${pose.topPct}%`;
@@ -586,7 +596,7 @@ function renderConveyor(now: number, keepRunning = true): void {
 
   for (const lane of conveyorLanes) {
     if (lane.continuousMarker && !conveyorBurgers.some((burger) => burger.side === lane.side)) {
-      createBurger(lane.side, lane.accent, now, lane.travelDurationMs, 0);
+      createBurger(lane.side, lane.accent, now, lane.travelDurationMs, 0, 1);
     }
   }
 
@@ -634,6 +644,7 @@ function startReplay(): void {
           now - age,
           duration,
           columnOffsetForIndex(column, timing.columnCount),
+          timing.columnCount,
         );
       }
     }

@@ -40,7 +40,7 @@ describe('conveyor physics', () => {
     const beltSlope = (edge.leftPct - far.leftPct) / (edge.topPct - far.topPct);
     const exitSlope = (exit.leftPct - edge.leftPct) / (exit.topPct - edge.topPct);
 
-    expect(far.leftPct).toBeCloseTo(53.7, 4);
+    expect(far.leftPct).toBeCloseTo(53.2, 4);
     expect(edge.leftPct).toBeCloseTo(83.2, 4);
     expect(exit.leftPct).toBeGreaterThan(120);
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
@@ -72,6 +72,17 @@ describe('conveyor physics', () => {
     for (let index = 1; index < edgeGaps.length; index += 1) {
       expect(edgeGaps[index]).toBeGreaterThan(edgeGaps[index - 1]!);
     }
+  });
+
+  it('applies the rail nudge only when a packed lane requests it', () => {
+    const centeredFar = projectBeltPose(0, 'left');
+    const packedFar = projectBeltPose(0, 'left', 0, 8.5, -0.5);
+    const centeredNear = projectBeltPose(0.8, 'left');
+    const packedNear = projectBeltPose(0.8, 'left', 0, 8.5, -0.5);
+
+    expect(centeredFar.leftPct).toBeCloseTo(46.8, 5);
+    expect(packedFar.leftPct).toBeCloseTo(46.3, 5);
+    expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 
   it('keeps burgers opaque and carries them fully below the frame', () => {
