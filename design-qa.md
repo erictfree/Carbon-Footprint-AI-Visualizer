@@ -101,6 +101,7 @@
 - Pass — the supplied conveyor artwork remains uncropped at its authored aspect ratio and the dynamic LED readouts, projective burger paths, music synchronization, and empty-to-complete batch behavior remain unchanged.
 - Pass — exact kg CO₂e values, uncertainty, ratio, burger-equivalent totals, live accumulated LEDs, and batch state remain visible and authoritative inside the playful treatment.
 - Pass — at 390 × 844 the scoreboard stacks the shared comparison beneath the two competitors, output cards stay side by side, the green status panel becomes full width, and the two primary controls remain large and reachable without horizontal overflow.
+- Pass — maximized Chrome at 2056 × 1080 uses a height-aware stage cap: the complete header, scoreboard, conveyor, output panels, and replay controls fit in exactly 1080 px with document `scrollHeight` equal to `innerHeight` and no horizontal overflow.
 - Pass — Start batch advances the soundtrack, timeline, LED totals, stage status, and three-wide production rows together. The browser console contains only Vite development messages and no warnings or errors.
 - Pass — the source and implementation were reviewed together in one normalized comparison; the retained utility bar and live numeric scores are intentional functional additions to the supplied reference rather than fidelity drift.
 

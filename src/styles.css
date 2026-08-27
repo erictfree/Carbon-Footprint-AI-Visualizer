@@ -2652,3 +2652,56 @@ body {
     grid-row: auto;
   }
 }
+
+/* Wide desktop windows gain width faster than height. Cap the conveyor by the
+   available vertical budget so a maximized Chrome window keeps the complete
+   cabinet—from scoreboard through controls—inside one viewport. */
+@media (min-width: 1600px) and (max-height: 1200px) {
+  .topbar {
+    height: 52px;
+  }
+
+  .comparison {
+    width: min(1920px, calc((100dvh - 394px) * 2.333333 + 84px));
+  }
+
+  .comparison__readouts {
+    min-height: 112px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+  }
+
+  .readout__identity {
+    font-size: clamp(17px, 1.55vw, 27px);
+  }
+
+  .readout > strong {
+    font-size: clamp(27px, 2.35vw, 42px);
+  }
+
+  .ratio-lockup > span {
+    font-size: clamp(12px, 1.05vw, 18px);
+  }
+
+  .ratio-lockup strong {
+    font-size: clamp(29px, 2.5vw, 44px);
+  }
+
+  .output-card,
+  .output-story {
+    min-height: 100px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .replay-strip {
+    min-height: 80px;
+    padding-top: 8px;
+    padding-bottom: 10px;
+  }
+
+  .sound-button,
+  .replay-button {
+    min-height: 52px;
+  }
+}
