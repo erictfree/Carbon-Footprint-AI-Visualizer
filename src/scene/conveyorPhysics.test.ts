@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   columnsForBeltLoad,
   laneMotionTiming,
+  packedColumnSpreadScale,
   packedRailCenterOffset,
   projectBeltPose,
   projectWorldProgress,
@@ -92,7 +93,7 @@ describe('conveyor physics', () => {
     expect(packedRailCenterOffset('left', 2)).toBe(0);
     expect(packedRailCenterOffset('right', 2)).toBe(0);
     expect(packedRailCenterOffset('left', 3)).toBe(-2.4);
-    expect(packedRailCenterOffset('right', 3)).toBe(-3.8);
+    expect(packedRailCenterOffset('right', 3)).toBe(0);
 
     const centeredFar = projectBeltPose(0, 'left');
     const packedFar = projectBeltPose(
@@ -114,6 +115,21 @@ describe('conveyor physics', () => {
     expect(centeredFar.leftPct).toBeCloseTo(48.4, 5);
     expect(packedFar.leftPct).toBeCloseTo(46, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
+  });
+
+  it('compresses only the distant packed right row around its centerline', () => {
+    const farScale = packedColumnSpreadScale('right', 3);
+    const farInner = projectBeltPose(0, 'right', -1, 8.5, 0, farScale);
+    const farCenter = projectBeltPose(0, 'right', 0, 8.5, 0, farScale);
+    const farOuter = projectBeltPose(0, 'right', 1, 8.5, 0, farScale);
+    const nearInner = projectBeltPose(0.8, 'right', -1, 8.5, 0, farScale);
+    const nearOuter = projectBeltPose(0.8, 'right', 1, 8.5, 0, farScale);
+
+    expect(farScale).toBe(0.74);
+    expect(packedColumnSpreadScale('left', 3)).toBe(1);
+    expect(farCenter.leftPct).toBeCloseTo(55.2, 5);
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18 * 0.74, 5);
+    expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(24.78, 5);
   });
 
   it('keeps burgers opaque and carries them fully below the frame', () => {

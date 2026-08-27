@@ -16,6 +16,7 @@ import {
 } from './game/setup';
 import {
   laneMotionTiming,
+  packedColumnSpreadScale,
   packedRailCenterOffset,
   projectBeltPose,
   ROUND_PLAYBACK_DURATION_MS,
@@ -375,6 +376,7 @@ let replayTotals = { left: 0, right: 0 };
 interface ConveyorBurger {
   columnOffset: number;
   element: HTMLImageElement;
+  farColumnSpreadScale: number;
   farCenterOffsetPct: number;
   side: BeltSide;
   bornAt: number;
@@ -700,6 +702,7 @@ function createBurger(
   const burger = {
     columnOffset,
     element: item,
+    farColumnSpreadScale: packedColumnSpreadScale(side, columnCount),
     farCenterOffsetPct: packedRailCenterOffset(side, columnCount),
     side,
     bornAt,
@@ -746,6 +749,7 @@ function renderConveyor(now: number, keepRunning = true): void {
       burger.columnOffset,
       burger.spriteWidthPct,
       burger.farCenterOffsetPct,
+      burger.farColumnSpreadScale,
     );
     burger.element.style.left = `${pose.leftPct}%`;
     burger.element.style.top = `${pose.topPct}%`;

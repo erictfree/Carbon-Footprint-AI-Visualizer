@@ -47,7 +47,20 @@ export function packedRailCenterOffset(
   columnCount: number,
 ): number {
   if (columnCount < 3) return 0;
-  return side === 'left' ? -2.4 : -3.8;
+  return side === 'left' ? -2.4 : 0;
+}
+
+/**
+ * The right belt is especially narrow at the photographed horizon. Compress
+ * only the distant three-wide row around its center ray, then open it back to
+ * full physical spacing as the belt approaches the camera. This clears both
+ * rails without moving the accepted centerline or foreground placement.
+ */
+export function packedColumnSpreadScale(
+  side: BeltSide,
+  columnCount: number,
+): number {
+  return side === 'right' && columnCount >= 3 ? 0.74 : 1;
 }
 
 /**
@@ -70,6 +83,7 @@ export function projectBeltPose(
   columnOffset = 0,
   spriteWidthPct = DEFAULT_SPRITE_WIDTH_PCT,
   farCenterOffsetPct = 0,
+  farColumnSpreadScale = 1,
 ): BeltPose {
   const world = clamp01(worldProgress);
   const beltWorld = world / BELT_PLANE_END;
@@ -100,7 +114,14 @@ export function projectBeltPose(
     NEAR_COLUMN_GAP_PCT,
     clamp01(beltDepth),
   );
-  const columnSpread = Math.max(0, spriteWidthPct) * scale + columnGapPct;
+  const packedSpreadScale = mix(
+    Math.max(0, farColumnSpreadScale),
+    1,
+    clamp01(beltDepth),
+  );
+  const columnSpread = (
+    Math.max(0, spriteWidthPct) * scale + columnGapPct
+  ) * packedSpreadScale;
   const leftPct = centerLeftPct + columnOffset * columnSpread;
   const depth = beltDepth;
 
