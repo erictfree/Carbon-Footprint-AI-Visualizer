@@ -96,14 +96,14 @@ app.innerHTML = `
       </div>
 
       <figure class="factory-stage" id="factory-stage" aria-label="Two straight burger conveyor belts comparing carbon production rates">
-        <img class="factory-stage__art" src="${ASSET_BASE}/linear-conveyor.jpg" alt="Twin industrial conveyor belts running in parallel toward the viewer" />
+        <img class="factory-stage__art" src="${ASSET_BASE}/burgerbelt2.jpg" alt="Twin industrial conveyor belts running from a distant vanishing point toward the viewer" />
         <div class="factory-stage__shade"></div>
-        <div class="factory-label factory-label--left">
-          <span id="left-factory-name">AI line</span>
+        <div class="belt-readout belt-readout--left">
+          <strong id="left-belt-carbon">—</strong>
           <strong id="left-pace">—</strong>
         </div>
-        <div class="factory-label factory-label--right">
-          <span id="right-factory-name">Lifestyle line</span>
+        <div class="belt-readout belt-readout--right">
+          <strong id="right-belt-carbon">—</strong>
           <strong id="right-pace">—</strong>
         </div>
         <div class="flow-layer" id="flow-layer" aria-hidden="true"></div>
@@ -235,6 +235,16 @@ function formatCarbon(kgCo2e: number): string {
   return `${Math.round(kgCo2e * 1_000).toLocaleString('en-US')} g CO₂e`;
 }
 
+function formatBeltCarbon(kgCo2e: number): string {
+  if (!Number.isFinite(kgCo2e)) return '—';
+  if (kgCo2e >= 1_000_000) return `${(kgCo2e / 1_000_000).toFixed(1)} Mt`;
+  if (kgCo2e >= 1_000) return `${(kgCo2e / 1_000).toFixed(1)} t`;
+  if (kgCo2e >= 100) return `${Math.round(kgCo2e).toLocaleString('en-US')} kg`;
+  if (kgCo2e >= 10) return `${kgCo2e.toFixed(1)} kg`;
+  if (kgCo2e >= 0.1) return `${kgCo2e.toFixed(2)} kg`;
+  return `${Math.round(kgCo2e * 1_000).toLocaleString('en-US')} g`;
+}
+
 function formatRatio(value: number): string {
   if (!Number.isFinite(value)) return '—';
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M×`;
@@ -255,11 +265,11 @@ function productionPace(burgers: number, days: number): string {
   if (burgers <= 0) return 'Line idle';
   if (burgers < 0.005) return 'Below visual threshold';
   const perDay = burgers / Math.max(1, days);
-  if (perDay < 0.05) return `About 1 burger every ${Math.round(1 / perDay)} days`;
-  if (perDay < 1) return `${perDay.toFixed(2)} burger per day`;
-  if (perDay < 100) return `${perDay.toFixed(1)} burgers per day`;
-  if (perDay < 100_000) return `${Math.round(perDay).toLocaleString('en-US')} burgers per day`;
-  return `${(perDay / 1_000_000).toFixed(1)}M burgers per day`;
+  if (perDay < 0.05) return `1 burger / ${Math.round(1 / perDay)}d`;
+  if (perDay < 1) return `${perDay.toFixed(2)} / day`;
+  if (perDay < 100) return `${perDay.toFixed(1)} / day`;
+  if (perDay < 100_000) return `${Math.round(perDay).toLocaleString('en-US')} / day`;
+  return `${(perDay / 1_000_000).toFixed(1)}M / day`;
 }
 
 const shell = byId('works-shell');
@@ -465,8 +475,8 @@ function renderComparison(state: AppState): void {
   byId('right-label').textContent = sides.right.label;
   byId('right-value').textContent = formatCarbon(sides.right.kgCo2e);
   byId('right-range').textContent = sides.right.range ?? '';
-  byId('left-factory-name').textContent = sides.left.factoryName;
-  byId('right-factory-name').textContent = sides.right.factoryName;
+  byId('left-belt-carbon').textContent = formatBeltCarbon(sides.left.kgCo2e);
+  byId('right-belt-carbon').textContent = formatBeltCarbon(sides.right.kgCo2e);
 
   const low = Math.min(sides.left.kgCo2e, sides.right.kgCo2e);
   const high = Math.max(sides.left.kgCo2e, sides.right.kgCo2e);

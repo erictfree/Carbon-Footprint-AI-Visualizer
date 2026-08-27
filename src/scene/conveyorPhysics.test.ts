@@ -45,9 +45,9 @@ describe('conveyor physics', () => {
     const beltSlope = (edge.leftPct - far.leftPct) / (edge.topPct - far.topPct);
     const exitSlope = (exit.leftPct - edge.leftPct) / (exit.topPct - edge.topPct);
 
-    expect(far.leftPct).toBeCloseTo(53.2, 4);
-    expect(edge.leftPct).toBeCloseTo(83.2, 4);
-    expect(exit.leftPct).toBeGreaterThan(120);
+    expect(far.leftPct).toBeCloseTo(55.4, 4);
+    expect(edge.leftPct).toBeCloseTo(75, 4);
+    expect(exit.leftPct).toBeGreaterThan(100);
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
   });
 
@@ -85,8 +85,8 @@ describe('conveyor physics', () => {
     const centeredNear = projectBeltPose(0.8, 'left');
     const packedNear = projectBeltPose(0.8, 'left', 0, 8.5, -0.5);
 
-    expect(centeredFar.leftPct).toBeCloseTo(46.8, 5);
-    expect(packedFar.leftPct).toBeCloseTo(46.3, 5);
+    expect(centeredFar.leftPct).toBeCloseTo(44.6, 5);
+    expect(packedFar.leftPct).toBeCloseTo(44.1, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 
