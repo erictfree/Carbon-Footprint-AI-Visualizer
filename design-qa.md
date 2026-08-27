@@ -55,7 +55,7 @@
 - Restart lines: passed; the typical state immediately seeds one slow AI marker and ten aligned rows of three lifestyle burgers on desktop (three rows of two on compact screens) before continuous cadence resumes.
 - Soundtrack: passed structural and media validation. The 48.8-second Burger Blitz MP3 decodes without errors, starts from zero with the Music gesture, restarts with the production replay, and leaves the final 11.2 seconds silent so the authoritative one-minute rate loop remains unchanged. At 390 px, Music and Restart remain visible without overlap or horizontal overflow.
 - Swap: passed; populated and sparse lane cadence, speed, labels, and values exchange sides while the projective path remains mirrored.
-- Chrome parity: pending refresh after the exact-rate and white-line path pass.
+- Chrome parity: passed after replacing the fixed 88 px/62 px sprite widths with an 11% stage-relative width. At equal belt depth, burger-to-stage proportions now remain constant across Chrome window sizes while the intentional desktop/compact column breakpoint remains discrete; the larger calibration keeps both browser views legible without returning to fixed pixel sizing.
 - Console warnings/errors: none.
 
 ## Comparison history

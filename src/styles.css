@@ -1290,7 +1290,7 @@ input[type="range"] {
 
 .stream-item {
   z-index: 8;
-  width: clamp(88px, 8vw, 132px);
+  width: 11%;
   transform-origin: center bottom;
   will-change: left, top, transform, opacity;
 }
@@ -1458,7 +1458,7 @@ input[type="range"] {
   .stage-status,
   .unit-chip,
   .factory-stage figcaption { display: none; }
-  .stream-item { width: 62px; }
+  .stream-item { width: 11%; }
 
   .output-strip {
     grid-template-columns: 1fr 1fr;
