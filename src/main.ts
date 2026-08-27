@@ -291,6 +291,7 @@ interface ConveyorBurger {
   columnOffset: number;
   element: HTMLImageElement;
   farCenterOffsetPct: number;
+  nearCenterOffsetPct: number;
   side: BeltSide;
   bornAt: number;
   spriteWidthPct: number;
@@ -326,9 +327,21 @@ function columnOffsetForIndex(index: number, columnCount: number): number {
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
-function railCenterOffsetForLane(side: BeltSide, columnCount: number): number {
-  if (columnCount < 3) return 0;
-  return side === 'left' ? -0.5 : 0.5;
+function centerOffsetsForLane(
+  side: BeltSide,
+  columnCount: number,
+): { far: number; near: number } {
+  if (columnCount === 1) {
+    return side === 'left'
+      ? { far: -3.4, near: 5.5 }
+      : { far: 3.4, near: -5.5 };
+  }
+  if (columnCount >= 3) {
+    return side === 'left'
+      ? { far: -0.5, near: 0 }
+      : { far: 0.5, near: 0 };
+  }
+  return { far: 0, near: 0 };
 }
 
 function selectedScenario() {
@@ -536,10 +549,12 @@ function createBurger(
   const spriteWidthPct = stage.clientWidth > 0
     ? item.offsetWidth / stage.clientWidth * 100
     : 8.5;
+  const centerOffsets = centerOffsetsForLane(side, columnCount);
   const burger = {
     columnOffset,
     element: item,
-    farCenterOffsetPct: railCenterOffsetForLane(side, columnCount),
+    farCenterOffsetPct: centerOffsets.far,
+    nearCenterOffsetPct: centerOffsets.near,
     side,
     bornAt,
     spriteWidthPct,
@@ -584,6 +599,7 @@ function renderConveyor(now: number, keepRunning = true): void {
       burger.columnOffset,
       burger.spriteWidthPct,
       burger.farCenterOffsetPct,
+      burger.nearCenterOffsetPct,
     );
     burger.element.style.left = `${pose.leftPct}%`;
     burger.element.style.top = `${pose.topPct}%`;

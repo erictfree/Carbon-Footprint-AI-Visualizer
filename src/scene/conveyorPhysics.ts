@@ -54,6 +54,7 @@ export function projectBeltPose(
   columnOffset = 0,
   spriteWidthPct = DEFAULT_SPRITE_WIDTH_PCT,
   farCenterOffsetPct = 0,
+  nearCenterOffsetPct = 0,
 ): BeltPose {
   const world = clamp01(worldProgress);
   const beltWorld = world / BELT_PLANE_END;
@@ -65,7 +66,7 @@ export function projectBeltPose(
     side === 'left' ? FAR_LEFT_X : FAR_RIGHT_X,
     side === 'left' ? NEAR_LEFT_X : NEAR_RIGHT_X,
     beltDepth,
-  ) + farCenterOffsetPct * (1 - clamp01(beltDepth));
+  ) + mix(farCenterOffsetPct, nearCenterOffsetPct, clamp01(beltDepth));
   const topPct = mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth);
   // The square sprite extends well above its belt contact point. A slightly
   // delayed scale curve keeps that silhouette from consuming physical row
