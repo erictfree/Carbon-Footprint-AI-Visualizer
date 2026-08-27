@@ -36,6 +36,8 @@ if (!app) throw new Error('Burger Works could not find its app root.');
 const ASSET_BASE = '/assets/burger-works';
 const BURGER_KG_CO2E = 3;
 const RATE_LOOP_DURATION_MS = 14_000;
+const BELT_TRAVEL_DURATION_MS = 18_000;
+const MAX_BURGERS_ON_LANE = 4;
 
 const restored = loadSnapshot(window.localStorage);
 // Synthetic demonstrations should open identically in every browser. Only a
@@ -109,7 +111,7 @@ app.innerHTML = `
 
       <section class="output-strip" aria-label="Production totals and visual explanation">
         <article class="output-card output-card--left"><span>Window output</span><strong id="left-unit-count">—</strong><small id="left-unit-name">burger equivalent</small></article>
-        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p>Same burger, same belt, same window. Faster movement and tighter spacing mean a higher CO₂ rate.</p></div>
+        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p>Same burger, same belt, same window. Belt speed stays fixed; production cadence shows the relative CO₂ rate.</p></div>
         <article class="output-card output-card--right"><span>Window output</span><strong id="right-unit-count">—</strong><small id="right-unit-name">burger equivalent</small></article>
       </section>
 
@@ -181,7 +183,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>Animation speed and spacing are log-compressed and capped so both lines remain readable; exact window totals remain visible below the belts.</dd></div>
+      <div><dt>Visual scale</dt><dd>Both belts use the same fixed travel time. Burger launch cadence is log-compressed and capacity-capped so the lines stay readable; exact window totals remain visible below.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
@@ -453,16 +455,24 @@ function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: nu
   flowLayer.append(item);
   const path = side === 'left'
     ? [
-        { left: '43.3%', top: '-4%', opacity: 0, transform: `translate(-50%, -50%) scale(${0.08 * sizeScale})` },
-        { left: '42.4%', top: '4%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.12 * sizeScale})` },
-        { left: '24.7%', top: '106%', opacity: 1, offset: 0.94, transform: `translate(-50%, -50%) scale(${1.38 * sizeScale})` },
-        { left: '23.5%', top: '116%', opacity: 0, transform: `translate(-50%, -50%) scale(${1.55 * sizeScale})` },
+        { left: '43.3%', top: '-4%', opacity: 0, offset: 0, transform: `translate(-50%, -50%) scale(${0.07 * sizeScale})` },
+        { left: '42.8%', top: '0%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.1 * sizeScale})` },
+        { left: '37.7%', top: '30%', opacity: 1, offset: 0.18, transform: `translate(-50%, -50%) scale(${0.35 * sizeScale})` },
+        { left: '33.1%', top: '58%', opacity: 1, offset: 0.4, transform: `translate(-50%, -50%) scale(${0.63 * sizeScale})` },
+        { left: '29.1%', top: '82%', opacity: 1, offset: 0.67, transform: `translate(-50%, -50%) scale(${0.93 * sizeScale})` },
+        { left: '26.3%', top: '99%', opacity: 1, offset: 0.88, transform: `translate(-50%, -50%) scale(${1.16 * sizeScale})` },
+        { left: '24.8%', top: '108%', opacity: 1, offset: 0.97, transform: `translate(-50%, -50%) scale(${1.3 * sizeScale})` },
+        { left: '24.1%', top: '112%', opacity: 0, offset: 1, transform: `translate(-50%, -50%) scale(${1.34 * sizeScale})` },
       ]
     : [
-        { left: '56.7%', top: '-4%', opacity: 0, transform: `translate(-50%, -50%) scale(${0.08 * sizeScale})` },
-        { left: '57.6%', top: '4%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.12 * sizeScale})` },
-        { left: '75.3%', top: '106%', opacity: 1, offset: 0.94, transform: `translate(-50%, -50%) scale(${1.38 * sizeScale})` },
-        { left: '76.5%', top: '116%', opacity: 0, transform: `translate(-50%, -50%) scale(${1.55 * sizeScale})` },
+        { left: '56.7%', top: '-4%', opacity: 0, offset: 0, transform: `translate(-50%, -50%) scale(${0.07 * sizeScale})` },
+        { left: '57.2%', top: '0%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.1 * sizeScale})` },
+        { left: '62.3%', top: '30%', opacity: 1, offset: 0.18, transform: `translate(-50%, -50%) scale(${0.35 * sizeScale})` },
+        { left: '66.9%', top: '58%', opacity: 1, offset: 0.4, transform: `translate(-50%, -50%) scale(${0.63 * sizeScale})` },
+        { left: '70.9%', top: '82%', opacity: 1, offset: 0.67, transform: `translate(-50%, -50%) scale(${0.93 * sizeScale})` },
+        { left: '73.7%', top: '99%', opacity: 1, offset: 0.88, transform: `translate(-50%, -50%) scale(${1.16 * sizeScale})` },
+        { left: '75.2%', top: '108%', opacity: 1, offset: 0.97, transform: `translate(-50%, -50%) scale(${1.3 * sizeScale})` },
+        { left: '75.9%', top: '112%', opacity: 0, offset: 1, transform: `translate(-50%, -50%) scale(${1.34 * sizeScale})` },
       ];
   const animation = item.animate(path, { duration, easing: 'linear', fill: 'forwards' });
   replayAnimations.push(animation);
@@ -476,12 +486,7 @@ function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: nu
 function visualRate(kgCo2e: number): number {
   const burgers = kgCo2e / BURGER_KG_CO2E;
   if (burgers <= 0) return 0;
-  return clamp(0.05 + Math.log10(burgers + 1) * 0.24, 0.05, 0.75);
-}
-
-function rollingDuration(kgCo2e: number): number {
-  const burgers = kgCo2e / BURGER_KG_CO2E;
-  return clamp(15_000 - Math.log10(burgers + 1) * 2_000, 9_500, 15_000);
+  return clamp(Math.log10(burgers + 1) * 0.26, 0.02, 0.75);
 }
 
 function startReplay(): void {
@@ -501,13 +506,16 @@ function startReplay(): void {
   const schedule = (side: 'left' | 'right', data: SideData) => {
     const rate = visualRate(data.kgCo2e);
     if (rate <= 0) return;
-    const duration = rollingDuration(data.kgCo2e);
+    const duration = BELT_TRAVEL_DURATION_MS;
     const sizeScale = 1;
-    const interval = Math.round(1_000 / rate);
-    const visibleItems = clamp(Math.floor(duration / interval), 1, 10);
+    const laneCapacity = stage.clientWidth <= 760 ? 3 : MAX_BURGERS_ON_LANE;
+    const requestedInterval = Math.round(1_000 / rate);
+    const capacityInterval = Math.ceil(duration / (laneCapacity - 0.5));
+    const interval = Math.max(requestedInterval, capacityInterval);
+    const visibleItems = clamp(Math.ceil(duration / interval), 1, laneCapacity);
     for (let index = 0; index < visibleItems; index += 1) {
       const animation = launchItem(side, data.className, sizeScale, duration);
-      animation.currentTime = (index / visibleItems) * duration * 0.92;
+      animation.currentTime = Math.min(index * interval, duration - 1);
     }
     const timer = window.setInterval(() => launchItem(side, data.className, sizeScale, duration), interval);
     replayTimers.push(timer);
