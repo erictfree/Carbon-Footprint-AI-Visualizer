@@ -15,6 +15,7 @@ import {
   estimatePromptInputTokens,
 } from './game/setup';
 import {
+  columnOffsetForIndex,
   laneMotionTiming,
   packedColumnSpreadScale,
   packedRailCenterOffset,
@@ -405,17 +406,6 @@ function laneCapacityForStage(): number {
 
 function maxColumnsForStage(): number {
   return stage.clientWidth <= 760 ? 2 : 3;
-}
-
-function columnOffsetForIndex(
-  index: number,
-  columnCount: number,
-  side: BeltSide,
-): number {
-  if (columnCount <= 1) return 0;
-  if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
-  if (side === 'right') return [-1, -0.04, 0.92][index % 3] ?? 0;
-  return [-1, 0, 1][index % 3] ?? 0;
 }
 
 function impactFor(state: AppState, id: LifestyleMetricId): LifestyleImpact | null {

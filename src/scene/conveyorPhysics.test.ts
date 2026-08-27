@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  columnOffsetForIndex,
   columnsForBeltLoad,
   laneMotionTiming,
   packedColumnSpreadScale,
@@ -146,6 +147,19 @@ describe('conveyor physics', () => {
     expect(farCenter.leftPct).toBeCloseTo(55.2, 5);
     expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18 * 0.74, 5);
     expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(24.78, 5);
+  });
+
+  it('keeps the tightened lifestyle columns evenly spaced', () => {
+    const offsets = [0, 1, 2].map((index) => (
+      columnOffsetForIndex(index, 3, 'right')
+    ));
+    const firstGap = offsets[1]! - offsets[0]!;
+    const secondGap = offsets[2]! - offsets[1]!;
+
+    expect(offsets).toEqual([-1, -0.12, 0.76]);
+    expect(firstGap).toBeCloseTo(0.88, 5);
+    expect(secondGap).toBeCloseTo(firstGap, 5);
+    expect(columnOffsetForIndex(1, 3, 'left')).toBe(0);
   });
 
   it('keeps burgers opaque and carries them fully below the frame', () => {
