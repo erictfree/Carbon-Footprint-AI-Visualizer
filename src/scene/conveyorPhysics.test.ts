@@ -59,7 +59,7 @@ describe('conveyor physics', () => {
     const nearCenter = projectBeltPose(0.8, 'right', 0);
     const nearOuter = projectBeltPose(0.8, 'right', 1);
 
-    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.38, 5);
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18, 5);
     expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(12.39, 5);
     expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(12.39, 5);
   });
@@ -73,21 +73,21 @@ describe('conveyor physics', () => {
       return centerGap - spriteWidthPct * inner.scale;
     });
 
-    expect(edgeGaps[0]).toBeCloseTo(0.5, 5);
+    expect(edgeGaps[0]).toBeCloseTo(0.4, 5);
     expect(edgeGaps.at(-1)).toBeCloseTo(1, 5);
     for (let index = 1; index < edgeGaps.length; index += 1) {
       expect(edgeGaps[index]).toBeGreaterThan(edgeGaps[index - 1]!);
     }
   });
 
-  it('applies the rail nudge only when a packed lane requests it', () => {
+  it('applies the inward rail nudge only when a packed lane requests it', () => {
     const centeredFar = projectBeltPose(0, 'left');
-    const packedFar = projectBeltPose(0, 'left', 0, 8.5, -0.5);
+    const packedFar = projectBeltPose(0, 'left', 0, 8.5, 0.35);
     const centeredNear = projectBeltPose(0.8, 'left');
-    const packedNear = projectBeltPose(0.8, 'left', 0, 8.5, -0.5);
+    const packedNear = projectBeltPose(0.8, 'left', 0, 8.5, 0.35);
 
     expect(centeredFar.leftPct).toBeCloseTo(48.4, 5);
-    expect(packedFar.leftPct).toBeCloseTo(47.9, 5);
+    expect(packedFar.leftPct).toBeCloseTo(48.75, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 

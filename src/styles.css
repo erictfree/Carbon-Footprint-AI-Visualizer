@@ -1318,6 +1318,22 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+.factory-stage.is-preroll .belt-readout {
+  animation: belt-led-preroll 900ms steps(1, end) both;
+}
+
+@keyframes belt-led-preroll {
+  0%, 18%, 36%, 54%, 72%, 100% {
+    opacity: 1;
+    filter: brightness(1.45);
+  }
+
+  9%, 27%, 45%, 63% {
+    opacity: 0.12;
+    filter: brightness(0.55);
+  }
+}
+
 .stage-status {
   top: 25px;
   width: max-content;

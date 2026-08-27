@@ -17,12 +17,12 @@ Open `http://127.0.0.1:5174/`.
 - Local CSV import with automatic or manual column mapping
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
-- Straight, perspective-matched twin conveyors with identical burgers and live CO₂ displays embedded in the photographed machinery; a projective belt-plane transform makes distant motion slower and foreground motion faster, while an exact one-minute cadence progressively fills the belt's rows and width before increasing velocity
+- Straight, perspective-matched twin conveyors with identical burgers and live accumulating CO₂ displays embedded in the photographed machinery; each run starts empty, admits one comparison window from the back over one minute, and stops after the final burgers fall beyond the foreground
 - Responsive physical headway: burger geometry scales directly with the photographed stage, with up to ten three-wide rows on desktop and three two-wide rows on compact screens, size-aware column spacing, and full opacity until sprites run beyond the bottom edge
 - A persistent slow-lane marker keeps sub-one-burger output visible without changing the authoritative numeric total
-- Immediate steady-state line density plus exact burger-equivalent output for the selected window
-- Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
-- Optional Burger Blitz soundtrack starts with the production animation, restarts with manual replays, and preserves the one-minute loop with a short intentional silence after the 48.8-second track
+- Empty-to-complete batch staging plus exact burger-equivalent output for the selected window
+- Batch replay, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
+- Burger Blitz is queued by default; Start batch primes the soundtrack, flashes both LED panels for a short systems check, then launches the music and empty-to-full production run together
 - Responsive desktop and mobile layouts
 
 ## Data format

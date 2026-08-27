@@ -36,7 +36,7 @@ if (!app) throw new Error('Burger Works could not find its app root.');
 
 const ASSET_BASE = '/assets/burger-works';
 const BURGER_KG_CO2E = 3;
-const RATE_LOOP_DURATION_MS = 60_000;
+const PRODUCTION_WINDOW_DURATION_MS = 60_000;
 const MAX_BURGERS_ON_LANE = 10;
 
 const restored = loadSnapshot(window.localStorage);
@@ -111,19 +111,19 @@ app.innerHTML = `
 
       <section class="output-strip" aria-label="Production totals and visual explanation">
         <article class="output-card output-card--left"><span>Window output</span><strong id="left-unit-count">—</strong><small id="left-unit-name">burger equivalent</small></article>
-        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p id="motion-note">One comparison window plays in one minute. Output fills rows across each belt before increasing its speed.</p></div>
+        <div class="output-story"><strong id="stage-status" aria-live="polite">Production batch ready</strong><p id="motion-note">One comparison window enters from the back over one minute, then the run stops after the final burgers clear the foreground.</p></div>
         <article class="output-card output-card--right"><span>Window output</span><strong id="right-unit-count">—</strong><small id="right-unit-name">burger equivalent</small></article>
       </section>
 
       <section class="replay-strip" aria-label="Factory replay controls">
         <div class="replay-copy">
           <span class="live-dot"></span>
-          <div><strong id="replay-window">30-day production · continuous loop</strong><span id="source-status">Synthetic demonstration</span></div>
+          <div><strong id="replay-window">30-day production · single batch</strong><span id="source-status">Synthetic demonstration</span></div>
         </div>
         <div class="timeline" aria-hidden="true"><span id="timeline-fill"></span></div>
         <div class="replay-actions">
           <button class="sound-button" id="sound-toggle" type="button" aria-pressed="false" title="Play the Burger Blitz soundtrack">♫ Music</button>
-          <button class="replay-button" id="replay-button" type="button">Restart lines</button>
+          <button class="replay-button" id="replay-button" type="button">Start batch</button>
         </div>
       </section>
     </section>
@@ -188,7 +188,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>One comparison window plays in one minute. Exact output fills perspective-aware rows—up to three burgers across on desktop—before belt speed rises. A persistent slow marker keeps sub-one-burger output visible; numeric totals remain authoritative. A planar projective transform makes distant motion slower and foreground motion faster.</dd></div>
+      <div><dt>Visual scale</dt><dd>One comparison window enters from the back over one minute. Exact output fills perspective-aware rows—up to three burgers across on desktop—before belt speed rises. A slow marker carries sub-one-burger output; the LED counters accumulate to the authoritative totals. The run ends after the final burgers clear the foreground.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
@@ -300,13 +300,13 @@ const flightInputs: Record<FlightLengthId, HTMLInputElement> = {
 let activeComparison: LifestyleMetricId = 'total';
 let swapped = false;
 let pendingFile: File | null = null;
-let replayTimers: number[] = [];
 let replayFrame: number | null = null;
+let preRollTimer: number | null = null;
 let replayStartedAt = 0;
-let hasPlayedInitialReplay = false;
-let soundtrackEnabled = false;
+let soundtrackEnabled = true;
 let soundtrackLoopTimer: number | null = null;
 let soundtrackGeneration = 0;
+let replayTotals = { left: 0, right: 0 };
 
 interface ConveyorBurger {
   columnOffset: number;
@@ -322,11 +322,11 @@ interface ConveyorLane {
   side: BeltSide;
   accent: 'ai' | 'life';
   columnCount: number;
-  continuousMarker: boolean;
   intervalMs: number;
   travelDurationMs: number;
   capacity: number;
   nextSpawnAt: number;
+  remainingToSpawn: number;
 }
 
 let conveyorBurgers: ConveyorBurger[] = [];
@@ -349,7 +349,7 @@ function columnOffsetForIndex(index: number, columnCount: number): number {
 
 function railCenterOffsetForLane(side: BeltSide, columnCount: number): number {
   if (columnCount < 3) return 0;
-  return side === 'left' ? -0.5 : 0.5;
+  return side === 'left' ? 0.35 : -0.35;
 }
 
 function selectedScenario() {
@@ -366,7 +366,6 @@ function updateProfile(patch: Partial<LifestyleProfile>): void {
     const profile = { ...state.profile, ...patch };
     return { profile, result: state.aggregate ? calculateComparison(state.aggregate, profile) : null };
   });
-  window.setTimeout(() => startReplay(), 0);
 }
 
 function updateFlight(length: FlightLengthId, count: number): void {
@@ -486,15 +485,15 @@ function renderComparison(state: AppState): void {
   if (high < visualThresholdKg) {
     byId('ratio-value').textContent = '≈';
     byId('ratio-description').textContent = 'Both totals are below the visual threshold';
-    byId('stage-status').textContent = 'Live throughput · both lines below threshold';
+    byId('stage-status').textContent = 'Single batch · both lines below threshold';
   } else if (low < visualThresholdKg) {
     byId('ratio-value').textContent = '≫';
     byId('ratio-description').textContent = `${larger} is measurably larger in this window`;
-    byId('stage-status').textContent = 'Live throughput · one line below threshold';
+    byId('stage-status').textContent = 'Single batch · one line below threshold';
   } else {
     byId('ratio-value').textContent = formatRatio(ratio);
     byId('ratio-description').textContent = `${larger} is larger in this window`;
-    byId('stage-status').textContent = `Live throughput · totals differ by ${formatRatio(ratio)}`;
+    byId('stage-status').textContent = `Single batch · totals differ by ${formatRatio(ratio)}`;
   }
   const laneCapacity = laneCapacityForStage();
   const maxColumns = maxColumnsForStage();
@@ -503,14 +502,14 @@ function renderComparison(state: AppState): void {
   if (leftTiming && rightTiming && Number.isFinite(ratio)) {
     const busyTiming = sides.left.kgCo2e >= sides.right.kgCo2e ? leftTiming : rightTiming;
     const markerNote = leftTiming.continuousMarker || rightTiming.continuousMarker
-      ? ' One slow marker remains visible.'
+      ? ' A single slow marker carries the fractional output.'
       : '';
-    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. The exact ${formatRatio(ratio)} gap uses ${busyTiming.columnCount}-wide rows; belt speed rises only after all ${busyTiming.totalCapacity} positions fill.${markerNote}`;
+    byId('motion-note').textContent = `${state.result.comparisonDays} days enter over 1 minute. The ${formatRatio(ratio)} gap uses ${busyTiming.columnCount}-wide rows; the LEDs count upward, then the run stops after the final row clears.${markerNote}`;
   } else {
-    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. Output fills rows across each belt before increasing its speed.`;
+    byId('motion-note').textContent = `${state.result.comparisonDays} days enter over 1 minute. The LEDs count upward, then the run stops after the last burgers clear.`;
   }
   byId('window-label').textContent = `${state.result.comparisonDays}-day carbon comparison`;
-  byId('replay-window').textContent = `${state.result.comparisonDays}-day production · continuous loop`;
+  byId('replay-window').textContent = `${state.result.comparisonDays}-day production · single batch`;
   byId('source-status').textContent = state.aggregate.synthetic ? 'Synthetic demonstration' : `${state.aggregate.sourceName} · local only`;
 
   applyLoad('left', sides.left, state.result.comparisonDays);
@@ -527,24 +526,36 @@ function renderComparison(state: AppState): void {
 }
 
 function clearReplay(): void {
-  replayTimers.forEach((timer) => window.clearTimeout(timer));
-  replayTimers = [];
+  if (preRollTimer !== null) window.clearTimeout(preRollTimer);
+  preRollTimer = null;
   if (replayFrame !== null) window.cancelAnimationFrame(replayFrame);
   replayFrame = null;
   conveyorBurgers = [];
   conveyorLanes = [];
   flowLayer.replaceChildren();
-  stage.classList.remove('is-playing', 'is-packing');
-  replayButton.textContent = 'Restart lines';
+  stage.classList.remove('is-playing', 'is-packing', 'is-complete', 'is-preroll');
+  replayButton.textContent = 'Restart batch';
   timelineFill.style.transform = 'scaleX(0)';
+}
+
+function prepareBatch(): void {
+  const state = store.getState();
+  const sides = currentSides(state);
+  if (!sides) return;
+  clearReplay();
+  stopSoundtrack();
+  replayTotals = { left: sides.left.kgCo2e, right: sides.right.kgCo2e };
+  updateBeltCounters(0);
+  replayButton.textContent = 'Start batch';
+  byId('stage-status').textContent = 'Production batch ready · music queued with start';
 }
 
 function renderSoundtrackControl(): void {
   soundButton.setAttribute('aria-pressed', String(soundtrackEnabled));
-  soundButton.textContent = soundtrackEnabled ? '♫ Music on' : '♫ Music';
+  soundButton.textContent = soundtrackEnabled ? '♫ Music queued' : '♫ Music off';
   soundButton.title = soundtrackEnabled
-    ? 'Pause the Burger Blitz soundtrack'
-    : 'Play the Burger Blitz soundtrack';
+    ? 'Do not play Burger Blitz with the next batch'
+    : 'Queue Burger Blitz with the next batch';
 }
 
 function stopSoundtrack(reset = true): void {
@@ -552,26 +563,41 @@ function stopSoundtrack(reset = true): void {
   if (soundtrackLoopTimer !== null) window.clearTimeout(soundtrackLoopTimer);
   soundtrackLoopTimer = null;
   soundtrack.pause();
+  soundtrack.volume = 1;
   if (reset) soundtrack.currentTime = 0;
 }
 
-function restartSoundtrack(): void {
+function primeSoundtrack(): void {
   if (!soundtrackEnabled) return;
   if (soundtrackLoopTimer !== null) window.clearTimeout(soundtrackLoopTimer);
   const generation = ++soundtrackGeneration;
   soundtrack.pause();
   soundtrack.currentTime = 0;
+  soundtrack.volume = 0;
   void soundtrack.play().catch(() => {
     if (generation !== soundtrackGeneration) return;
     soundtrackEnabled = false;
     stopSoundtrack();
     renderSoundtrackControl();
   });
-  // Burger Blitz is 48.8 seconds. The remaining beat of silence preserves the
-  // authoritative one-minute production window before both loops restart.
-  soundtrackLoopTimer = window.setTimeout(() => {
-    if (soundtrackEnabled && generation === soundtrackGeneration) restartSoundtrack();
-  }, RATE_LOOP_DURATION_MS);
+  soundtrackLoopTimer = null;
+}
+
+function releaseSoundtrack(): void {
+  if (!soundtrackEnabled) return;
+  soundtrack.currentTime = 0;
+  soundtrack.volume = 1;
+  void soundtrack.play().catch(() => {
+    soundtrackEnabled = false;
+    stopSoundtrack();
+    renderSoundtrackControl();
+  });
+}
+
+function updateBeltCounters(progress: number): void {
+  const elapsedShare = clamp(progress, 0, 1);
+  byId('left-belt-carbon').textContent = formatBeltCarbon(replayTotals.left * elapsedShare);
+  byId('right-belt-carbon').textContent = formatBeltCarbon(replayTotals.right * elapsedShare);
 }
 
 function createBurger(
@@ -608,20 +634,21 @@ function createBurger(
 function renderConveyor(now: number, keepRunning = true): void {
   for (const lane of conveyorLanes) {
     let catchUp = 0;
-    while (now >= lane.nextSpawnAt && catchUp < lane.capacity) {
+    while (lane.remainingToSpawn > 0 && now >= lane.nextSpawnAt && catchUp < lane.capacity) {
+      const rowBurgerCount = Math.min(lane.columnCount, lane.remainingToSpawn);
       const activeOnLane = conveyorBurgers.filter((burger) => burger.side === lane.side).length;
-      if (activeOnLane <= lane.capacity - lane.columnCount) {
-        for (let column = 0; column < lane.columnCount; column += 1) {
-          createBurger(
-            lane.side,
-            lane.accent,
-            lane.nextSpawnAt,
-            lane.travelDurationMs,
-            columnOffsetForIndex(column, lane.columnCount),
-            lane.columnCount,
-          );
-        }
+      if (activeOnLane > lane.capacity - rowBurgerCount) break;
+      for (let column = 0; column < rowBurgerCount; column += 1) {
+        createBurger(
+          lane.side,
+          lane.accent,
+          lane.nextSpawnAt,
+          lane.travelDurationMs,
+          columnOffsetForIndex(column, rowBurgerCount),
+          rowBurgerCount,
+        );
       }
+      lane.remainingToSpawn -= rowBurgerCount;
       lane.nextSpawnAt += lane.intervalMs;
       catchUp += 1;
     }
@@ -650,28 +677,43 @@ function renderConveyor(now: number, keepRunning = true): void {
   }
   conveyorBurgers = active;
 
-  for (const lane of conveyorLanes) {
-    if (lane.continuousMarker && !conveyorBurgers.some((burger) => burger.side === lane.side)) {
-      createBurger(lane.side, lane.accent, now, lane.travelDurationMs, 0, 1);
-    }
-  }
+  const runProgress = clamp(
+    (now - replayStartedAt) / PRODUCTION_WINDOW_DURATION_MS,
+    0,
+    1,
+  );
+  timelineFill.style.transform = `scaleX(${runProgress})`;
+  updateBeltCounters(runProgress);
 
-  const loopProgress = ((now - replayStartedAt) % RATE_LOOP_DURATION_MS) / RATE_LOOP_DURATION_MS;
-  timelineFill.style.transform = `scaleX(${loopProgress})`;
+  const allSpawned = conveyorLanes.every((lane) => lane.remainingToSpawn === 0);
+  if (allSpawned && conveyorBurgers.length === 0) {
+    timelineFill.style.transform = 'scaleX(1)';
+    updateBeltCounters(1);
+    stage.classList.remove('is-playing', 'is-packing');
+    stage.classList.add('is-complete');
+    replayButton.textContent = 'Replay batch';
+    byId('stage-status').textContent = 'Batch complete · final totals reached';
+    stopSoundtrack(false);
+    replayFrame = null;
+    return;
+  }
   if (keepRunning) replayFrame = window.requestAnimationFrame((time) => renderConveyor(time));
 }
 
-function startReplay(): void {
+function beginBatch(): void {
   const state = store.getState();
   const sides = currentSides(state);
   if (!sides || !state.result) return;
   clearReplay();
   stage.classList.add('is-playing');
   replayButton.disabled = false;
-  replayButton.textContent = 'Restart lines';
+  replayButton.textContent = 'Restart batch';
   timelineFill.style.transform = 'scaleX(0)';
   const now = performance.now();
   replayStartedAt = now;
+  replayTotals = { left: sides.left.kgCo2e, right: sides.right.kgCo2e };
+  updateBeltCounters(0);
+  byId('stage-status').textContent = 'Batch running · counters show current output';
 
   const schedule = (side: 'left' | 'right', data: SideData) => {
     const laneCapacity = laneCapacityForStage();
@@ -683,45 +725,47 @@ function startReplay(): void {
     if (!timing) return;
     const duration = timing.travelDurationMs;
     const interval = timing.continuousMarker
-      ? duration
+      ? PRODUCTION_WINDOW_DURATION_MS
       : timing.intervalMs * timing.columnCount;
     const totalCapacity = timing.continuousMarker ? 1 : timing.totalCapacity;
-    const visibleRows = timing.continuousMarker
-      ? 1
-      : clamp(Math.ceil(duration / interval), 1, laneCapacity);
-    const seedOffset = Math.min(interval * 0.2, duration * 0.45);
-    for (let row = 0; row < visibleRows; row += 1) {
-      const age = seedOffset + row * interval;
-      if (age >= duration) break;
-      for (let column = 0; column < timing.columnCount; column += 1) {
-        createBurger(
-          side,
-          data.className,
-          now - age,
-          duration,
-          columnOffsetForIndex(column, timing.columnCount),
-          timing.columnCount,
-        );
-      }
-    }
+    const burgerOutput = data.kgCo2e / BURGER_KG_CO2E;
+    const visibleBurgerCount = timing.continuousMarker ? 1 : Math.max(1, Math.ceil(burgerOutput));
     conveyorLanes.push({
       side,
       accent: data.className,
       columnCount: timing.columnCount,
-      continuousMarker: timing.continuousMarker,
       intervalMs: interval,
       travelDurationMs: duration,
       capacity: totalCapacity,
-      nextSpawnAt: timing.continuousMarker
-        ? Number.POSITIVE_INFINITY
-        : now + Math.max(16, interval - seedOffset),
+      nextSpawnAt: now,
+      remainingToSpawn: visibleBurgerCount,
     });
   };
   schedule('left', sides.left);
   schedule('right', sides.right);
-  if (soundtrackEnabled) restartSoundtrack();
+  releaseSoundtrack();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   renderConveyor(now, !reducedMotion);
+}
+
+function startReplay(): void {
+  const state = store.getState();
+  const sides = currentSides(state);
+  if (!sides || !state.result) return;
+  clearReplay();
+  stopSoundtrack();
+  replayTotals = { left: sides.left.kgCo2e, right: sides.right.kgCo2e };
+  updateBeltCounters(0);
+  stage.classList.add('is-preroll');
+  replayButton.disabled = true;
+  replayButton.textContent = 'Starting…';
+  byId('stage-status').textContent = 'Systems check · production starts after the flash';
+  primeSoundtrack();
+  preRollTimer = window.setTimeout(() => {
+    preRollTimer = null;
+    stage.classList.remove('is-preroll');
+    beginBatch();
+  }, 900);
 }
 
 store.subscribe((state) => {
@@ -747,10 +791,7 @@ store.subscribe((state) => {
   if (state.aggregate && state.result) {
     byId('ai-source-meta').textContent = `${state.aggregate.requests.toLocaleString('en-US')} requests · ${Math.round(state.aggregate.outputTokens * state.result.windowScale).toLocaleString('en-US')} output tokens · ${formatEnergy(state.result.energyWh.central)}`;
     renderComparison(state);
-    if (!hasPlayedInitialReplay) {
-      hasPlayedInitialReplay = true;
-      replayTimers.push(window.setTimeout(() => startReplay(), 450));
-    }
+    prepareBatch();
   }
 });
 
@@ -758,7 +799,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((butto
   button.addEventListener('click', () => {
     activeComparison = button.dataset.comparison as LifestyleMetricId;
     renderComparison(store.getState());
-    startReplay();
+    prepareBatch();
   });
 });
 
@@ -777,7 +818,6 @@ scenarioSelect.addEventListener('change', () => {
 byId('load-synthetic').addEventListener('click', () => {
   loadSynthetic();
   dataDialog.close();
-  window.setTimeout(() => startReplay(), 100);
 });
 byId('download-synthetic').addEventListener('click', () => {
   const scenario = selectedScenario();
@@ -808,12 +848,11 @@ soundButton.addEventListener('click', () => {
   }
   soundtrackEnabled = true;
   renderSoundtrackControl();
-  startReplay();
 });
 byId('swap-sides').addEventListener('click', () => {
   swapped = !swapped;
   renderComparison(store.getState());
-  startReplay();
+  prepareBatch();
 });
 byId('data-open').addEventListener('click', () => dataDialog.showModal());
 byId('data-close').addEventListener('click', () => dataDialog.close());
@@ -825,7 +864,7 @@ new ResizeObserver(() => {
   const nextCapacity = laneCapacityForStage();
   if (nextCapacity === observedLaneCapacity) return;
   observedLaneCapacity = nextCapacity;
-  startReplay();
+  prepareBatch();
 }).observe(stage);
 
 window.addEventListener('keydown', (event) => {
