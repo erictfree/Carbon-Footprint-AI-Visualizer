@@ -1,27 +1,23 @@
 import './styles.css';
 import { calculateComparison, formatEnergy } from './calc/engine';
 import {
-  COMPARISON_WINDOWS,
   DEFAULT_PROFILE,
   DIETS,
   FLIGHT_KG_CO2E,
   HOME_ENERGY,
   MASLEY_SOURCE,
+  MODEL_CURVES,
   REGIONS,
 } from './factors/masley';
-import { SYNTHETIC_SCENARIOS, type SyntheticScenarioId } from './fixtures/synthetic';
-import { laneMotionTiming, projectBeltPose, type BeltSide } from './scene/conveyorPhysics';
 import {
-  CsvSchemaError,
-  parseUsageCsvText,
-  parseUsageFile,
-  type UsageColumnMapping,
-} from './ingest/parseUsageCsv';
+  createGameUsageAggregate,
+  DEFAULT_GAME_SETUP,
+  estimatePromptInputTokens,
+} from './game/setup';
+import { laneMotionTiming, projectBeltPose, type BeltSide } from './scene/conveyorPhysics';
 import { createStore } from './state/store';
-import { getResumableSnapshot, loadSnapshot, saveSnapshot } from './storage/persistence';
 import type {
   AppState,
-  ComparisonWindowId,
   DietId,
   FlightLengthId,
   HomeEnergyId,
@@ -38,14 +34,14 @@ const ASSET_BASE = '/assets/burger-works';
 const BURGER_KG_CO2E = 3;
 const PRODUCTION_WINDOW_DURATION_MS = 60_000;
 const MAX_BURGERS_ON_LANE = 10;
+const SETUP_RETURN_DELAY_MS = 1_800;
 
-const restored = loadSnapshot(window.localStorage);
-// Synthetic demonstrations should open identically in every browser. Only a
-// real, locally imported aggregate resumes after refresh; demo profile tweaks
-// remain intentionally session-scoped.
-const resumableSnapshot = getResumableSnapshot(restored);
-const initialProfile = resumableSnapshot?.profile ?? DEFAULT_PROFILE;
-const initialAggregate = resumableSnapshot?.aggregate ?? null;
+const initialProfile: LifestyleProfile = {
+  ...DEFAULT_PROFILE,
+  flightsPerYear: { ...DEFAULT_PROFILE.flightsPerYear },
+  comparisonWindow: 'month',
+};
+const initialAggregate = createGameUsageAggregate(DEFAULT_GAME_SETUP);
 
 const store = createStore<AppState>({
   aggregate: initialAggregate,
@@ -71,7 +67,7 @@ app.innerHTML = `
       <div class="topbar__actions">
         <button class="quiet-button" id="swap-sides" type="button">Swap</button>
         <button class="quiet-button" id="methodology-open" type="button">Methodology</button>
-        <button class="data-button" id="data-open" type="button"><span class="data-button__long">Data &amp; profile</span><span class="data-button__short">Data</span></button>
+        <button class="data-button" id="data-open" type="button"><span class="data-button__long">New round</span><span class="data-button__short">Play</span></button>
       </div>
     </header>
 
@@ -96,7 +92,7 @@ app.innerHTML = `
       </div>
 
       <figure class="factory-stage" id="factory-stage" aria-label="Two straight burger conveyor belts comparing carbon production rates">
-        <img class="factory-stage__art" src="${ASSET_BASE}/burgerbelt2.jpg" alt="Twin industrial conveyor belts running from a distant vanishing point toward the viewer" />
+        <img class="factory-stage__art" src="${ASSET_BASE}/background.jpg" alt="Twin industrial conveyor belts running through a bright burger game-show factory" />
         <div class="factory-stage__shade"></div>
         <div class="belt-readout belt-readout--left">
           <strong id="left-belt-carbon">—</strong>
@@ -131,50 +127,92 @@ app.innerHTML = `
 
   <audio id="soundtrack" src="${ASSET_BASE}/burger-blitz.mp3" preload="metadata"></audio>
 
-  <dialog class="settings-dialog" id="data-dialog">
-    <div class="dialog-head">
-      <div><p>Data &amp; profile</p><h2>Choose what the factories compare.</h2></div>
-      <button class="dialog-close" id="data-close" type="button">Close</button>
-    </div>
-    <section class="settings-section">
-      <div class="settings-heading"><span>Lifestyle comparison</span><small>Uses the same time window as AI</small></div>
-      <div class="impact-picker">
-        <button class="impact-choice is-active" data-comparison="total" type="button" aria-pressed="true">Total <strong id="impact-total">—</strong></button>
-        <button class="impact-choice" data-comparison="diet" type="button" aria-pressed="false">Diet <strong id="impact-diet">—</strong></button>
-        <button class="impact-choice" data-comparison="driving" type="button" aria-pressed="false">Driving <strong id="impact-driving">—</strong></button>
-        <button class="impact-choice" data-comparison="flights" type="button" aria-pressed="false">Flights <strong id="impact-flights">—</strong></button>
-        <button class="impact-choice" data-comparison="home" type="button" aria-pressed="false">Home <strong id="impact-home">—</strong></button>
+  <dialog class="settings-dialog game-dialog" id="data-dialog">
+    <form id="setup-form">
+      <div class="dialog-head game-dialog__head">
+        <div>
+          <p>New comparison</p>
+          <h2>Build your carbon face-off.</h2>
+          <span>Choose the two inputs, then watch a full 30-day batch run.</span>
+        </div>
+        <button class="dialog-close" id="data-close" type="button">Back to factory</button>
       </div>
-    </section>
-    <section class="settings-section">
-      <div class="settings-heading"><span>Lifestyle inputs</span><button class="link-button" id="reset-profile" type="button">Reset</button></div>
-      <div class="control-grid">
-        <label><span>Diet</span><select id="diet-select">${Object.entries(DIETS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-        <label><span>Home energy</span><select id="home-select">${Object.entries(HOME_ENERGY).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-        <label><span>Grid region</span><select id="region-select">${Object.entries(REGIONS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-        <label><span>Comparison window</span><select id="window-select">${Object.entries(COMPARISON_WINDOWS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+
+      <div class="game-scoreboard" aria-label="Round preview">
+        <div class="game-scoreboard__side game-scoreboard__side--ai">
+          <span>AI · 30-day preview</span><strong id="setup-ai-preview">—</strong><small id="setup-ai-caption">Masley / EcoLogits estimate</small>
+        </div>
+        <img src="${ASSET_BASE}/burger.png" alt="" />
+        <div class="game-scoreboard__side game-scoreboard__side--life">
+          <span>Lifestyle · 30-day preview</span><strong id="setup-life-preview">—</strong><small id="setup-life-caption">Diet, home, driving &amp; flights</small>
+        </div>
       </div>
-      <label class="range-row">
-        <span><span>Weekly gasoline driving</span><output id="driving-output">230 mi</output></span>
-        <input id="driving-range" type="range" min="0" max="600" step="5" />
-      </label>
-      <fieldset class="flight-row">
-        <legend>Round-trip flights per year</legend>
-        ${Object.entries(FLIGHT_KG_CO2E).map(([id, item]) => `<label><span>${item.label}<small>${item.kgCo2ePerRoundTrip.toLocaleString('en-US')} kg</small></span><input id="flight-${id}" type="number" min="0" max="20" step="1" inputmode="numeric" /></label>`).join('')}
-      </fieldset>
-    </section>
-    <section class="settings-section">
-      <div class="settings-heading"><span>AI usage</span><small id="ai-source-meta">Local browser only</small></div>
-      <label class="scenario-row"><span>Development scenario</span><select id="scenario-select">${Object.values(SYNTHETIC_SCENARIOS).map((scenario) => `<option value="${scenario.id}">${scenario.label}</option>`).join('')}</select><small id="scenario-description">${SYNTHETIC_SCENARIOS.typical.description}</small></label>
-      <div class="data-actions">
-        <button class="primary-button" id="load-synthetic" type="button">Load scenario</button>
-        <button class="secondary-button" id="replace-csv" type="button">Import usage CSV</button>
-        <button class="link-button" id="download-synthetic" type="button">Download sample</button>
+
+      <div class="game-setup-grid">
+        <section class="settings-section game-panel game-panel--ai">
+          <div class="settings-heading"><span>1 · Your AI use</span><small id="ai-source-meta">Masley defaults loaded</small></div>
+          <div class="setup-presets" aria-label="AI usage presets">
+            <span>Quick presets</span>
+            <button class="setup-preset setup-preset--yellow" type="button" data-game-preset="default">Masley default</button>
+            <button class="setup-preset setup-preset--cyan" type="button" data-game-preset="light">Light chat</button>
+            <button class="setup-preset setup-preset--orange" type="button" data-game-preset="coding">Coding day</button>
+            <button class="setup-preset setup-preset--pink" type="button" data-game-preset="agent">Agent marathon</button>
+          </div>
+          <label class="prompt-field">
+            <span>Your prompt</span>
+            <textarea id="prompt-input" rows="4" required>${DEFAULT_GAME_SETUP.prompt}</textarea>
+            <small id="prompt-token-estimate">About ${estimatePromptInputTokens(DEFAULT_GAME_SETUP.prompt)} input tokens · shown for context</small>
+          </label>
+          <div class="control-grid game-control-grid">
+            <label><span>Model</span><select id="model-select">${Object.values(MODEL_CURVES).map((model) => `<option value="${model.id}"${model.id === DEFAULT_GAME_SETUP.model ? ' selected' : ''}>${model.name}</option>`).join('')}</select></label>
+            <label><span>Answer length</span><select id="output-tokens-select">
+              <option value="50">Quick · 50 tokens</option>
+              <option value="170">Short · 170 tokens</option>
+              <option value="250">Medium · 250 tokens</option>
+              <option value="400" selected>Detailed · 400 tokens</option>
+              <option value="5000">Long · 5,000 tokens</option>
+              <option value="15000">Deep work · 15,000 tokens</option>
+              <option value="100000">Agent run · 100,000 tokens</option>
+              <option value="500000">Max run · 500,000 tokens</option>
+            </select></label>
+            <label class="prompts-field"><span>Prompts per day</span><input id="prompts-per-day" type="number" min="1" max="100000" step="1" value="${DEFAULT_GAME_SETUP.promptsPerDay}" required /></label>
+            <label><span>Grid region</span><select id="region-select">${Object.entries(REGIONS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+          </div>
+          <p class="game-note">Input tokens are counted, but the current Masley source models energy from output tokens.</p>
+        </section>
+
+        <section class="settings-section game-panel game-panel--life">
+          <div class="settings-heading"><span>2 · Your lifestyle</span><button class="link-button" id="reset-profile" type="button">Masley defaults</button></div>
+          <div class="control-grid game-control-grid">
+            <label><span>Diet</span><select id="diet-select">${Object.entries(DIETS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Home energy</span><select id="home-select">${Object.entries(HOME_ENERGY).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+          </div>
+          <label class="range-row">
+            <span><span>Weekly gasoline driving</span><output id="driving-output">230 mi</output></span>
+            <input id="driving-range" type="range" min="0" max="600" step="5" value="230" />
+          </label>
+          <fieldset class="flight-row">
+            <legend>Round-trip flights per year</legend>
+            ${Object.entries(FLIGHT_KG_CO2E).map(([id, item]) => `<label><span>${item.label}<small>${item.kgCo2ePerRoundTrip.toLocaleString('en-US')} kg</small></span><input id="flight-${id}" type="number" min="0" max="20" step="1" value="0" inputmode="numeric" /></label>`).join('')}
+          </fieldset>
+          <div class="settings-heading opponent-heading"><span>Compare AI against</span><small>Pick the opponent</small></div>
+          <div class="impact-picker">
+            <button class="impact-choice is-active" data-comparison="total" type="button" aria-pressed="true">Total <strong id="impact-total">—</strong></button>
+            <button class="impact-choice" data-comparison="diet" type="button" aria-pressed="false">Diet <strong id="impact-diet">—</strong></button>
+            <button class="impact-choice" data-comparison="driving" type="button" aria-pressed="false">Driving <strong id="impact-driving">—</strong></button>
+            <button class="impact-choice" data-comparison="flights" type="button" aria-pressed="false">Flights <strong id="impact-flights">—</strong></button>
+            <button class="impact-choice" data-comparison="home" type="button" aria-pressed="false">Home <strong id="impact-home">—</strong></button>
+          </div>
+        </section>
       </div>
-      <input id="csv-input" type="file" accept=".csv,text/csv" hidden />
-      <p class="local-note">Raw CSV rows stay in this browser and are discarded after aggregation.</p>
-      <p class="error-message" id="error-message" role="alert" hidden></p>
-    </section>
+
+      <footer class="game-dialog__footer">
+        <div class="last-round" id="last-round" hidden><span>Last round</span><strong id="last-round-summary">—</strong></div>
+        <div class="round-promise"><strong>30 days become one minute</strong><span>LEDs flash, music starts, and both lines run to completion.</span></div>
+        <button class="primary-button game-start-button" type="submit">Done · start round</button>
+      </footer>
+      <p class="error-message game-error" id="error-message" role="alert" hidden></p>
+    </form>
   </dialog>
 
   <dialog class="methodology-dialog" id="methodology-dialog">
@@ -195,23 +233,6 @@ app.innerHTML = `
     <p class="methodology-version">${MASLEY_SOURCE.version} · Updated ${MASLEY_SOURCE.updated}</p>
   </dialog>
 
-  <dialog class="mapping-dialog" id="mapping-dialog">
-    <div class="dialog-head">
-      <div><p>CSV column mapping</p><h2>Tell us which columns to use.</h2></div>
-      <button class="dialog-close" id="mapping-close" type="button">Cancel</button>
-    </div>
-    <form id="mapping-form">
-      <div class="control-grid">
-        <label><span>Date or timestamp</span><select id="map-timestamp" required></select></label>
-        <label><span>Model</span><select id="map-model" required></select></label>
-        <label><span>Input tokens <em>optional</em></span><select id="map-input"></select></label>
-        <label><span>Output tokens</span><select id="map-output"></select></label>
-        <label><span>Requests <em>optional</em></span><select id="map-requests"></select></label>
-      </div>
-      <p class="error-message" id="mapping-error" hidden></p>
-      <button class="primary-button" type="submit">Import locally</button>
-    </form>
-  </dialog>
 `;
 
 function byId<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -281,28 +302,36 @@ const soundtrack = byId<HTMLAudioElement>('soundtrack');
 soundtrack.volume = 0.55;
 const timelineFill = byId('timeline-fill');
 const dataDialog = byId<HTMLDialogElement>('data-dialog');
+const setupForm = byId<HTMLFormElement>('setup-form');
 const methodologyDialog = byId<HTMLDialogElement>('methodology-dialog');
-const mappingDialog = byId<HTMLDialogElement>('mapping-dialog');
-const mappingForm = byId<HTMLFormElement>('mapping-form');
-const csvInput = byId<HTMLInputElement>('csv-input');
+const promptInput = byId<HTMLTextAreaElement>('prompt-input');
+const modelSelect = byId<HTMLSelectElement>('model-select');
+const outputTokensSelect = byId<HTMLSelectElement>('output-tokens-select');
+const promptsPerDayInput = byId<HTMLInputElement>('prompts-per-day');
 const dietSelect = byId<HTMLSelectElement>('diet-select');
 const homeSelect = byId<HTMLSelectElement>('home-select');
 const regionSelect = byId<HTMLSelectElement>('region-select');
-const windowSelect = byId<HTMLSelectElement>('window-select');
 const drivingRange = byId<HTMLInputElement>('driving-range');
-const scenarioSelect = byId<HTMLSelectElement>('scenario-select');
 const flightInputs: Record<FlightLengthId, HTMLInputElement> = {
   short: byId('flight-short'),
   medium: byId('flight-medium'),
   long: byId('flight-long'),
 };
 
+const GAME_PRESETS: Record<string, { model: string; outputTokens: number; promptsPerDay: number }> = {
+  default: { model: 'gpt-5.5', outputTokens: 400, promptsPerDay: 10 },
+  light: { model: 'gpt-5.4-mini', outputTokens: 170, promptsPerDay: 3 },
+  coding: { model: 'claude-sonnet-4-6', outputTokens: 5_000, promptsPerDay: 18 },
+  agent: { model: 'gpt-5.5-pro', outputTokens: 100_000, promptsPerDay: 24 },
+};
+
 let activeComparison: LifestyleMetricId = 'total';
 let swapped = false;
-let pendingFile: File | null = null;
 let replayFrame: number | null = null;
 let preRollTimer: number | null = null;
+let returnToSetupTimer: number | null = null;
 let replayStartedAt = 0;
+let hasStartedRound = false;
 let soundtrackEnabled = true;
 let soundtrackLoopTimer: number | null = null;
 let soundtrackGeneration = 0;
@@ -352,78 +381,80 @@ function railCenterOffsetForLane(side: BeltSide, columnCount: number): number {
   return side === 'left' ? 0.35 : -0.35;
 }
 
-function selectedScenario() {
-  return SYNTHETIC_SCENARIOS[scenarioSelect.value as SyntheticScenarioId] ?? SYNTHETIC_SCENARIOS.typical;
-}
-
 function impactFor(state: AppState, id: LifestyleMetricId): LifestyleImpact | null {
   if (!state.result) return null;
   return id === 'total' ? state.result.lifestyle.total : state.result.lifestyle.components[id];
 }
 
-function updateProfile(patch: Partial<LifestyleProfile>): void {
-  store.setState((state) => {
-    const profile = { ...state.profile, ...patch };
-    return { profile, result: state.aggregate ? calculateComparison(state.aggregate, profile) : null };
-  });
-}
-
-function updateFlight(length: FlightLengthId, count: number): void {
-  updateProfile({
+function profileFromSetup(): LifestyleProfile {
+  return {
+    ...store.getState().profile,
+    diet: dietSelect.value as DietId,
+    homeEnergy: homeSelect.value as HomeEnergyId,
+    region: regionSelect.value as RegionId,
+    weeklyDrivingMiles: clamp(Math.round(Number(drivingRange.value)), 0, 600),
     flightsPerYear: {
-      ...store.getState().profile.flightsPerYear,
-      [length]: clamp(Math.round(count), 0, 20),
+      short: clamp(Math.round(Number(flightInputs.short.value)), 0, 20),
+      medium: clamp(Math.round(Number(flightInputs.medium.value)), 0, 20),
+      long: clamp(Math.round(Number(flightInputs.long.value)), 0, 20),
     },
+    comparisonWindow: 'month',
+  };
+}
+
+function syncPromptEstimate(): void {
+  const tokens = estimatePromptInputTokens(promptInput.value);
+  byId('prompt-token-estimate').textContent = `About ${tokens.toLocaleString('en-US')} input tokens · shown for context`;
+  syncRoundPreview();
+}
+
+function syncLifestylePreview(): void {
+  const diet = DIETS[dietSelect.value as DietId]?.label ?? 'Lifestyle';
+  const region = REGIONS[regionSelect.value as RegionId]?.label ?? 'US';
+  byId('setup-life-caption').textContent = `${diet} · ${region}`;
+  syncRoundPreview();
+}
+
+function syncRoundPreview(): void {
+  const aggregate = createGameUsageAggregate({
+    prompt: promptInput.value,
+    model: modelSelect.value,
+    outputTokens: Number(outputTokensSelect.value),
+    promptsPerDay: Number(promptsPerDayInput.value),
   });
+  const result = calculateComparison(aggregate, profileFromSetup());
+  const lifestyle = activeComparison === 'total'
+    ? result.lifestyle.total
+    : result.lifestyle.components[activeComparison];
+  byId('setup-ai-preview').textContent = formatCarbon(result.aiCarbonKgCo2e.central);
+  byId('setup-ai-caption').textContent = `${aggregate.requests.toLocaleString('en-US')} prompts / day · ${formatEnergy(result.energyWh.central)}`;
+  byId('setup-life-preview').textContent = formatCarbon(lifestyle.kgCo2e);
 }
 
-function loadSynthetic(id: SyntheticScenarioId = scenarioSelect.value as SyntheticScenarioId): void {
-  const scenario = SYNTHETIC_SCENARIOS[id] ?? SYNTHETIC_SCENARIOS.typical;
-  try {
-    const aggregate = parseUsageCsvText(scenario.csv, { sourceName: scenario.filename, synthetic: true });
-    store.setState({
-      aggregate,
-      result: calculateComparison(aggregate, store.getState().profile),
-      status: 'ready',
-      error: null,
-    });
-  } catch (error) {
-    store.setState({ status: 'error', error: error instanceof Error ? error.message : 'Could not load the synthetic scenario.' });
+function resetSetupControls(): void {
+  promptInput.value = DEFAULT_GAME_SETUP.prompt;
+  modelSelect.value = DEFAULT_GAME_SETUP.model;
+  outputTokensSelect.value = String(DEFAULT_GAME_SETUP.outputTokens);
+  promptsPerDayInput.value = String(DEFAULT_GAME_SETUP.promptsPerDay);
+  dietSelect.value = DEFAULT_PROFILE.diet;
+  homeSelect.value = DEFAULT_PROFILE.homeEnergy;
+  regionSelect.value = DEFAULT_PROFILE.region;
+  drivingRange.value = String(DEFAULT_PROFILE.weeklyDrivingMiles);
+  byId<HTMLOutputElement>('driving-output').value = `${DEFAULT_PROFILE.weeklyDrivingMiles} mi`;
+  for (const length of Object.keys(flightInputs) as FlightLengthId[]) {
+    flightInputs[length].value = String(DEFAULT_PROFILE.flightsPerYear[length]);
   }
+  syncPromptEstimate();
+  syncLifestylePreview();
 }
 
-function populateMapping(headers: string[]): void {
-  for (const id of ['map-timestamp', 'map-model', 'map-input', 'map-output', 'map-requests']) {
-    const select = byId<HTMLSelectElement>(id);
-    select.replaceChildren(new Option('Choose a column…', ''));
-    headers.forEach((header) => select.add(new Option(header, header)));
-  }
-  byId<HTMLParagraphElement>('mapping-error').hidden = true;
-}
-
-async function loadFile(file: File, mapping?: UsageColumnMapping): Promise<void> {
-  store.setState({ status: 'parsing', error: null });
-  try {
-    const aggregate = await parseUsageFile(file, { mapping });
-    pendingFile = null;
-    store.setState({
-      aggregate,
-      result: calculateComparison(aggregate, store.getState().profile),
-      status: 'ready',
-      error: null,
-    });
-  } catch (error) {
-    if (error instanceof CsvSchemaError) {
-      pendingFile = file;
-      populateMapping(error.headers);
-      store.setState({ status: 'mapping', error: null });
-      mappingDialog.showModal();
-      return;
-    }
-    store.setState({ status: 'error', error: error instanceof Error ? error.message : 'Could not parse that CSV.' });
-  } finally {
-    csvInput.value = '';
-  }
+function applyGamePreset(id: string): void {
+  const preset = GAME_PRESETS[id];
+  if (!preset) return;
+  modelSelect.value = preset.model;
+  outputTokensSelect.value = String(preset.outputTokens);
+  promptsPerDayInput.value = String(preset.promptsPerDay);
+  syncPromptEstimate();
 }
 
 interface SideData {
@@ -510,7 +541,7 @@ function renderComparison(state: AppState): void {
   }
   byId('window-label').textContent = `${state.result.comparisonDays}-day carbon comparison`;
   byId('replay-window').textContent = `${state.result.comparisonDays}-day production · single batch`;
-  byId('source-status').textContent = state.aggregate.synthetic ? 'Synthetic demonstration' : `${state.aggregate.sourceName} · local only`;
+  byId('source-status').textContent = state.aggregate.synthetic ? 'Interactive Masley estimate' : `${state.aggregate.sourceName} · local only`;
 
   applyLoad('left', sides.left, state.result.comparisonDays);
   applyLoad('right', sides.right, state.result.comparisonDays);
@@ -526,6 +557,8 @@ function renderComparison(state: AppState): void {
 }
 
 function clearReplay(): void {
+  if (returnToSetupTimer !== null) window.clearTimeout(returnToSetupTimer);
+  returnToSetupTimer = null;
   if (preRollTimer !== null) window.clearTimeout(preRollTimer);
   preRollTimer = null;
   if (replayFrame !== null) window.cancelAnimationFrame(replayFrame);
@@ -536,6 +569,23 @@ function clearReplay(): void {
   stage.classList.remove('is-playing', 'is-packing', 'is-complete', 'is-preroll');
   replayButton.textContent = 'Restart batch';
   timelineFill.style.transform = 'scaleX(0)';
+}
+
+function openSetupDialog(showLastRound = false): void {
+  const closeButton = byId<HTMLButtonElement>('data-close');
+  closeButton.hidden = !hasStartedRound;
+  const lastRound = byId('last-round');
+  lastRound.hidden = !showLastRound;
+  if (showLastRound) {
+    const sides = currentSides(store.getState());
+    if (sides) {
+      byId('last-round-summary').textContent = `${formatCarbon(sides.left.kgCo2e)} vs ${formatCarbon(sides.right.kgCo2e)}`;
+    }
+  }
+  syncPromptEstimate();
+  syncLifestylePreview();
+  if (!dataDialog.open) dataDialog.showModal();
+  dataDialog.scrollTop = 0;
 }
 
 function prepareBatch(): void {
@@ -695,6 +745,10 @@ function renderConveyor(now: number, keepRunning = true): void {
     byId('stage-status').textContent = 'Batch complete · final totals reached';
     stopSoundtrack(false);
     replayFrame = null;
+    returnToSetupTimer = window.setTimeout(() => {
+      returnToSetupTimer = null;
+      openSetupDialog(true);
+    }, SETUP_RETURN_DELAY_MS);
     return;
   }
   if (keepRunning) replayFrame = window.requestAnimationFrame((time) => renderConveyor(time));
@@ -775,17 +829,10 @@ store.subscribe((state) => {
   dietSelect.value = state.profile.diet;
   homeSelect.value = state.profile.homeEnergy;
   regionSelect.value = state.profile.region;
-  windowSelect.value = state.profile.comparisonWindow;
   drivingRange.value = String(state.profile.weeklyDrivingMiles);
   byId<HTMLOutputElement>('driving-output').value = `${state.profile.weeklyDrivingMiles} mi`;
   for (const [length, input] of Object.entries(flightInputs)) {
     input.value = String(state.profile.flightsPerYear[length as FlightLengthId]);
-  }
-
-  try {
-    saveSnapshot(window.localStorage, state.profile, state.aggregate);
-  } catch {
-    // Persistence is optional; the current session remains functional.
   }
 
   if (state.aggregate && state.result) {
@@ -799,44 +846,49 @@ document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((butto
   button.addEventListener('click', () => {
     activeComparison = button.dataset.comparison as LifestyleMetricId;
     renderComparison(store.getState());
-    prepareBatch();
+    syncRoundPreview();
   });
 });
 
-dietSelect.addEventListener('change', () => updateProfile({ diet: dietSelect.value as DietId }));
-homeSelect.addEventListener('change', () => updateProfile({ homeEnergy: homeSelect.value as HomeEnergyId }));
-regionSelect.addEventListener('change', () => updateProfile({ region: regionSelect.value as RegionId }));
-windowSelect.addEventListener('change', () => updateProfile({ comparisonWindow: windowSelect.value as ComparisonWindowId }));
-drivingRange.addEventListener('input', () => updateProfile({ weeklyDrivingMiles: Number(drivingRange.value) }));
-for (const [length, input] of Object.entries(flightInputs)) {
-  input.addEventListener('input', () => updateFlight(length as FlightLengthId, Number(input.value)));
-}
+promptInput.addEventListener('input', syncPromptEstimate);
+promptsPerDayInput.addEventListener('input', syncPromptEstimate);
+modelSelect.addEventListener('change', syncRoundPreview);
+outputTokensSelect.addEventListener('change', syncRoundPreview);
+document.querySelectorAll<HTMLButtonElement>('[data-game-preset]').forEach((button) => {
+  button.addEventListener('click', () => applyGamePreset(button.dataset.gamePreset ?? ''));
+});
+dietSelect.addEventListener('change', syncLifestylePreview);
+homeSelect.addEventListener('change', syncRoundPreview);
+regionSelect.addEventListener('change', syncLifestylePreview);
+drivingRange.addEventListener('input', () => {
+  byId<HTMLOutputElement>('driving-output').value = `${drivingRange.value} mi`;
+  syncRoundPreview();
+});
+for (const input of Object.values(flightInputs)) input.addEventListener('input', syncRoundPreview);
+byId('reset-profile').addEventListener('click', resetSetupControls);
 
-scenarioSelect.addEventListener('change', () => {
-  byId('scenario-description').textContent = selectedScenario().description;
-});
-byId('load-synthetic').addEventListener('click', () => {
-  loadSynthetic();
+setupForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!setupForm.reportValidity()) return;
+
+  const aggregate = createGameUsageAggregate({
+    prompt: promptInput.value,
+    model: modelSelect.value,
+    outputTokens: Number(outputTokensSelect.value),
+    promptsPerDay: Number(promptsPerDayInput.value),
+  });
+  const profile = profileFromSetup();
+  store.setState({
+    aggregate,
+    profile,
+    result: calculateComparison(aggregate, profile),
+    status: 'ready',
+    error: null,
+  });
+  hasStartedRound = true;
   dataDialog.close();
+  startReplay();
 });
-byId('download-synthetic').addEventListener('click', () => {
-  const scenario = selectedScenario();
-  const url = URL.createObjectURL(new Blob([scenario.csv], { type: 'text/csv' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = scenario.filename;
-  link.click();
-  URL.revokeObjectURL(url);
-});
-byId('replace-csv').addEventListener('click', () => csvInput.click());
-csvInput.addEventListener('change', () => {
-  const file = csvInput.files?.[0];
-  if (file) void loadFile(file);
-});
-byId('reset-profile').addEventListener('click', () => updateProfile({
-  ...DEFAULT_PROFILE,
-  flightsPerYear: { ...DEFAULT_PROFILE.flightsPerYear },
-}));
 
 replayButton.addEventListener('click', startReplay);
 soundButton.addEventListener('click', () => {
@@ -854,8 +906,14 @@ byId('swap-sides').addEventListener('click', () => {
   renderComparison(store.getState());
   prepareBatch();
 });
-byId('data-open').addEventListener('click', () => dataDialog.showModal());
+byId('data-open').addEventListener('click', () => {
+  prepareBatch();
+  openSetupDialog(false);
+});
 byId('data-close').addEventListener('click', () => dataDialog.close());
+dataDialog.addEventListener('cancel', (event) => {
+  if (!hasStartedRound) event.preventDefault();
+});
 byId('methodology-open').addEventListener('click', () => methodologyDialog.showModal());
 byId('methodology-close').addEventListener('click', () => methodologyDialog.close());
 
@@ -877,33 +935,6 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-function closeMapping(): void {
-  pendingFile = null;
-  mappingDialog.close();
-  store.setState({ status: store.getState().aggregate ? 'ready' : 'error' });
-}
-
-byId('mapping-close').addEventListener('click', closeMapping);
-mappingForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  if (!pendingFile) return;
-  const mapping: UsageColumnMapping = {
-    timestamp: byId<HTMLSelectElement>('map-timestamp').value,
-    model: byId<HTMLSelectElement>('map-model').value,
-    inputTokens: byId<HTMLSelectElement>('map-input').value || undefined,
-    outputTokens: byId<HTMLSelectElement>('map-output').value || undefined,
-    requests: byId<HTMLSelectElement>('map-requests').value || undefined,
-  };
-  const mappingError = byId<HTMLParagraphElement>('mapping-error');
-  if (!mapping.timestamp || !mapping.model || (!mapping.inputTokens && !mapping.outputTokens)) {
-    mappingError.textContent = 'Choose a date, model, and at least one token column.';
-    mappingError.hidden = false;
-    return;
-  }
-  const file = pendingFile;
-  mappingDialog.close();
-  void loadFile(file, mapping);
-});
-
+resetSetupControls();
 renderSoundtrackControl();
-if (!initialAggregate) loadSynthetic('typical');
+openSetupDialog(false);

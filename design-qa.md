@@ -76,4 +76,19 @@
 
 - P3 — a future iteration could add a subtle physical belt-motion texture if a real animated asset becomes available; current moving burgers already communicate throughput without fabricating visual art.
 
+## Game setup and playful visual-system pass
+
+- Source reference: `assets/dialog.jpg` (1904 × 1040 px), supplied as the explicit setup-dialog visual target. It was compared side by side with the prototype at the same 1280 × 720 normalized frame.
+- Runtime setup evidence: `artifacts/design-qa/burger-works-game-dialog-final.png` (1280 × 720 px).
+- Runtime round evidence: `artifacts/design-qa/burger-works-game-stage-final.png` (1280 × 720 px).
+- Main-stage source: `public/assets/burger-works/background.jpg` (2128 × 912 px), the supplied burger-and-fries game-show conveyor with exact line geometry and black LED recesses.
+- Pass — the setup no longer uses the former dark data-settings sheet. It adopts the reference's saturated red environment, rounded cartoon display type, cream controls, thick cyan/yellow outlines, hard toy-like shadows, multicolor preset chips, bright score panels, and real burger artwork.
+- Pass — the source's dominant footprint-number hierarchy is adapted to the product's two-number premise: both 30-day CO₂ estimates update live above the form while the center burger keeps the face-off legible.
+- Pass — all core controls work: prompt, model, answer length, daily volume, grid region, lifestyle defaults, driving, flights, opponent choice, and four AI presets. Done computes with the Masley curves and starts the established LED-flash/music/belt sequence.
+- Pass — the round begins from empty belts and returns to the setup dialog after the final sprites clear, with the previous choices retained and the last-round comparison exposed.
+- Pass — the initial modal cannot be dismissed without starting a round; subsequent setup visits include Back to factory. Reopening always resets modal scroll to the scoreboard.
+- Pass — at 390 × 844 the form becomes one column, the score panels remain visible with wrapped values, the sticky start action remains reachable, and no horizontal clipping appears.
+- Pass — the reference and implementation use actual raster assets rather than fabricated SVG, emoji, placeholder, or CSS-drawn illustration.
+- Pass — all 41 unit tests and the production build complete; current browser logs contain no warnings or errors.
+
 final result: passed
