@@ -26,6 +26,10 @@ export interface RestoredSnapshot {
   aggregate: UsageAggregate | null;
 }
 
+export function getResumableSnapshot(snapshot: RestoredSnapshot | null): RestoredSnapshot | null {
+  return snapshot?.aggregate && !snapshot.aggregate.synthetic ? snapshot : null;
+}
+
 function bounded(value: unknown, fallback: number, minimum: number, maximum: number): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(maximum, Math.max(minimum, value))

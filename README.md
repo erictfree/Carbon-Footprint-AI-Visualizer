@@ -19,7 +19,7 @@ Open `http://127.0.0.1:5174/`.
 - Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
 - Slow continuous ramp animation with upright burgers anchored to each conveyor centerline; spacing and travel speed rise with the relative CO₂ rate
 - Packed total units: tiny burger, burger, tray, crate, pallet, and truck
-- Replay-loop restart, side swap, methodology, profile controls, and local persistence
+- Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
 - Responsive desktop and mobile layouts
 
 ## Data format

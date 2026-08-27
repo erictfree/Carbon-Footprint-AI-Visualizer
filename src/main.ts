@@ -17,7 +17,7 @@ import {
   type UsageColumnMapping,
 } from './ingest/parseUsageCsv';
 import { createStore } from './state/store';
-import { loadSnapshot, saveSnapshot } from './storage/persistence';
+import { getResumableSnapshot, loadSnapshot, saveSnapshot } from './storage/persistence';
 import type {
   AppState,
   ComparisonWindowId,
@@ -38,8 +38,12 @@ const BURGER_KG_CO2E = 3;
 const RATE_LOOP_DURATION_MS = 14_000;
 
 const restored = loadSnapshot(window.localStorage);
-const initialProfile = restored?.profile ?? DEFAULT_PROFILE;
-const initialAggregate = restored?.aggregate ?? null;
+// Synthetic demonstrations should open identically in every browser. Only a
+// real, locally imported aggregate resumes after refresh; demo profile tweaks
+// remain intentionally session-scoped.
+const resumableSnapshot = getResumableSnapshot(restored);
+const initialProfile = resumableSnapshot?.profile ?? DEFAULT_PROFILE;
+const initialAggregate = resumableSnapshot?.aggregate ?? null;
 
 const store = createStore<AppState>({
   aggregate: initialAggregate,

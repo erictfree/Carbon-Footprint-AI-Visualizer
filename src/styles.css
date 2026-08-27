@@ -331,7 +331,8 @@ button:disabled {
   --right-drop: 12px;
   position: relative;
   width: 100%;
-  height: clamp(500px, 52vw, 650px);
+  height: auto;
+  aspect-ratio: 1672 / 941;
   margin: 0;
   overflow: hidden;
   border: 1px solid rgba(171, 224, 224, 0.16);
@@ -1103,13 +1104,14 @@ input[type="range"] {
   }
 
   .factory-stage {
-    height: 360px;
+    height: auto;
+    aspect-ratio: 1672 / 941;
     border-radius: 14px;
   }
 
   .factory-stage__art {
-    object-fit: contain;
-    object-position: center;
+    object-fit: cover;
+    object-position: center 61%;
   }
 
   .factory-label {

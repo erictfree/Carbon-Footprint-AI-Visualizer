@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SYNTHETIC_SCENARIOS } from '../fixtures/synthetic';
 import { parseUsageCsvText } from '../ingest/parseUsageCsv';
 import type { LifestyleProfile } from '../types';
-import { deserializeSnapshot, serializeSnapshot } from './persistence';
+import { deserializeSnapshot, getResumableSnapshot, serializeSnapshot } from './persistence';
 
 describe('local aggregate persistence', () => {
   it('round-trips the profile and aggregate without raw CSV rows', () => {
@@ -27,6 +27,27 @@ describe('local aggregate persistence', () => {
     expect(restored?.aggregate?.start).toBeInstanceOf(Date);
     expect(restored?.aggregate?.rowCount).toBe(7);
     expect(restored?.aggregate).not.toHaveProperty('rows');
+  });
+
+  it('keeps synthetic demonstrations deterministic between browser sessions', () => {
+    const profile: LifestyleProfile = {
+      diet: 'vegan',
+      region: 'uk',
+      homeEnergy: 'apt',
+      weeklyDrivingMiles: 42,
+      flightsPerYear: { short: 2, medium: 1, long: 0 },
+      comparisonWindow: 'week',
+      startCity: 'London',
+      model3Efficiency: 4.3,
+    };
+    const synthetic = parseUsageCsvText(SYNTHETIC_SCENARIOS.light.csv, {
+      sourceName: SYNTHETIC_SCENARIOS.light.filename,
+      synthetic: true,
+    });
+    const imported = { ...synthetic, synthetic: false };
+
+    expect(getResumableSnapshot({ profile, aggregate: synthetic })).toBeNull();
+    expect(getResumableSnapshot({ profile, aggregate: imported })).toEqual({ profile, aggregate: imported });
   });
 
   it('migrates the original diet-only profile to the complete lifestyle defaults', () => {
