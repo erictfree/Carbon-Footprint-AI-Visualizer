@@ -272,7 +272,11 @@ function formatBeltCarbon(kgCo2e: number): string {
 
 function fitBeltCounter(element: HTMLElement, force = false): void {
   const text = element.textContent ?? '—';
-  if (!force && element.dataset.fitLength === String(text.length)) return;
+  // Digits have different rendered widths in the display font even when the
+  // formatted strings have the same character count. Refit for the actual
+  // value so a transition such as `60.6 kg` -> `177 kg` cannot reuse a stale
+  // measurement and crowd the edge of the photographed LED recess.
+  if (!force && element.dataset.fitText === text) return;
   const container = element.parentElement;
   if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return;
   const containerStyle = getComputedStyle(container);
@@ -285,17 +289,21 @@ function fitBeltCounter(element: HTMLElement, force = false): void {
 
   element.style.maxWidth = 'none';
   element.style.overflow = 'visible';
+  element.style.flex = '0 0 auto';
+  element.style.width = 'max-content';
   element.style.fontSize = '100px';
   const probe = element.getBoundingClientRect();
   const fittedSize = Math.min(
     34,
     probe.width > 0 ? 100 * availableWidth / probe.width : 34,
     probe.height > 0 ? 100 * availableHeight / probe.height : 34,
-  ) * 0.96;
+  ) * 0.91;
   element.style.maxWidth = '';
   element.style.overflow = '';
+  element.style.flex = '';
+  element.style.width = '';
   element.style.fontSize = `${Math.max(5, fittedSize).toFixed(1)}px`;
-  element.dataset.fitLength = String(text.length);
+  element.dataset.fitText = text;
 }
 
 function renderBeltCounter(id: 'left-belt-carbon' | 'right-belt-carbon', kgCo2e: number): void {
