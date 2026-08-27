@@ -75,7 +75,7 @@ export function columnOffsetForIndex(
 ): number {
   if (columnCount <= 1) return 0;
   if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
-  if (side === 'right') return [-1, -0.12, 0.76][index % 3] ?? 0;
+  if (side === 'right') return [-1, -0.24, 0.52][index % 3] ?? 0;
   return [-1, 0, 1][index % 3] ?? 0;
 }
 

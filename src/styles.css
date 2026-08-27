@@ -1299,7 +1299,8 @@ input[type="range"] {
 }
 
 .belt-readout--right {
-  right: 12.85%;
+  top: 43.3%;
+  right: 10.95%;
   width: 9.2%;
   color: #ffbd73;
 }

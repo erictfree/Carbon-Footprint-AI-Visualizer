@@ -156,8 +156,8 @@ describe('conveyor physics', () => {
     const firstGap = offsets[1]! - offsets[0]!;
     const secondGap = offsets[2]! - offsets[1]!;
 
-    expect(offsets).toEqual([-1, -0.12, 0.76]);
-    expect(firstGap).toBeCloseTo(0.88, 5);
+    expect(offsets).toEqual([-1, -0.24, 0.52]);
+    expect(firstGap).toBeCloseTo(0.76, 5);
     expect(secondGap).toBeCloseTo(firstGap, 5);
     expect(columnOffsetForIndex(1, 3, 'left')).toBe(0);
   });
