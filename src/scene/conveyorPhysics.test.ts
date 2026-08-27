@@ -53,9 +53,20 @@ describe('conveyor physics', () => {
     const nearCenter = projectBeltPose(0.8, 'right', 0);
     const nearOuter = projectBeltPose(0.8, 'right', 1);
 
-    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(2.4, 5);
-    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(12, 5);
-    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(12, 5);
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(4.38, 5);
+    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(12.39, 5);
+    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(12.39, 5);
+  });
+
+  it('holds a constant same-row edge gap while burgers grow', () => {
+    const spriteWidthPct = 8.5;
+    for (const progress of [0, 0.2, 0.4, 0.6, 0.8]) {
+      const inner = projectBeltPose(progress, 'right', 0, spriteWidthPct);
+      const outer = projectBeltPose(progress, 'right', 1, spriteWidthPct);
+      const centerGap = outer.leftPct - inner.leftPct;
+      const edgeGap = centerGap - spriteWidthPct * inner.scale;
+      expect(edgeGap).toBeCloseTo(1, 5);
+    }
   });
 
   it('keeps burgers opaque and carries them fully below the frame', () => {

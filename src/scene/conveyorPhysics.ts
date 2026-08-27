@@ -10,7 +10,7 @@ export interface BeltPose {
 
 const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
-const FAR_SCALE = 0.07;
+const FAR_SCALE = 0.14;
 const NEAR_SCALE = 1.34;
 const FAR_LEFT_X = 46.8;
 const NEAR_LEFT_X = 16.8;
@@ -21,8 +21,8 @@ const BELT_PERSPECTIVE = 2;
 const WINDOW_PLAYBACK_DURATION_MS = 60_000;
 const MIN_TRAVEL_DURATION_MS = 450;
 const HEADWAY_MARGIN = 0.2;
-const FAR_COLUMN_SPREAD = 1.2;
-const NEAR_COLUMN_SPREAD = 12;
+const DEFAULT_SPRITE_WIDTH_PCT = 8.5;
+const COLUMN_GAP_PCT = 1;
 const SPRITE_SCALE_EASING = 1.2;
 
 function clamp01(value: number): number {
@@ -51,6 +51,7 @@ export function projectBeltPose(
   worldProgress: number,
   side: BeltSide,
   columnOffset = 0,
+  spriteWidthPct = DEFAULT_SPRITE_WIDTH_PCT,
 ): BeltPose {
   const world = clamp01(worldProgress);
   const beltWorld = world / BELT_PLANE_END;
@@ -63,8 +64,6 @@ export function projectBeltPose(
     side === 'left' ? NEAR_LEFT_X : NEAR_RIGHT_X,
     beltDepth,
   );
-  const columnSpread = mix(FAR_COLUMN_SPREAD, NEAR_COLUMN_SPREAD, beltDepth);
-  const leftPct = centerLeftPct + columnOffset * columnSpread;
   const topPct = mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth);
   // The square sprite extends well above its belt contact point. A slightly
   // delayed scale curve keeps that silhouette from consuming physical row
@@ -74,6 +73,11 @@ export function projectBeltPose(
     ? Math.pow(Math.max(0, beltDepth), SPRITE_SCALE_EASING)
     : beltDepth;
   const scale = mix(FAR_SCALE, NEAR_SCALE, scaleDepth);
+  // Each column advances from the vanishing point along its own belt ray.
+  // Spacing follows the rendered sprite width plus a fixed visual air gap, so
+  // adjacent burgers neither converge nor drift apart as they grow.
+  const columnSpread = Math.max(0, spriteWidthPct) * scale + COLUMN_GAP_PCT;
+  const leftPct = centerLeftPct + columnOffset * columnSpread;
   const depth = beltDepth;
 
   return {

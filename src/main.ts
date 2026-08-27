@@ -292,6 +292,7 @@ interface ConveyorBurger {
   element: HTMLImageElement;
   side: BeltSide;
   bornAt: number;
+  spriteWidthPct: number;
   travelDurationMs: number;
 }
 
@@ -320,7 +321,7 @@ function maxColumnsForStage(): number {
 
 function columnOffsetForIndex(index: number, columnCount: number): number {
   if (columnCount <= 1) return 0;
-  if (columnCount === 2) return index % 2 === 0 ? -1 : 1;
+  if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
@@ -525,7 +526,17 @@ function createBurger(
   item.src = `${ASSET_BASE}/burger.png`;
   item.alt = '';
   flowLayer.append(item);
-  const burger = { columnOffset, element: item, side, bornAt, travelDurationMs };
+  const spriteWidthPct = stage.clientWidth > 0
+    ? item.offsetWidth / stage.clientWidth * 100
+    : 8.5;
+  const burger = {
+    columnOffset,
+    element: item,
+    side,
+    bornAt,
+    spriteWidthPct,
+    travelDurationMs,
+  };
   conveyorBurgers.push(burger);
   return burger;
 }
@@ -558,7 +569,12 @@ function renderConveyor(now: number, keepRunning = true): void {
       burger.element.remove();
       continue;
     }
-    const pose = projectBeltPose(worldProgress, burger.side, burger.columnOffset);
+    const pose = projectBeltPose(
+      worldProgress,
+      burger.side,
+      burger.columnOffset,
+      burger.spriteWidthPct,
+    );
     burger.element.style.left = `${pose.leftPct}%`;
     burger.element.style.top = `${pose.topPct}%`;
     burger.element.style.opacity = String(pose.opacity);
