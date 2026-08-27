@@ -16,6 +16,7 @@ import {
 } from './game/setup';
 import {
   laneMotionTiming,
+  packedRailCenterOffset,
   projectBeltPose,
   ROUND_PLAYBACK_DURATION_MS,
   type BeltSide,
@@ -381,11 +382,6 @@ function columnOffsetForIndex(index: number, columnCount: number): number {
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
-function railCenterOffsetForLane(side: BeltSide, columnCount: number): number {
-  if (columnCount < 3) return 0;
-  return side === 'left' ? 0.35 : -0.35;
-}
-
 function impactFor(state: AppState, id: LifestyleMetricId): LifestyleImpact | null {
   if (!state.result) return null;
   return id === 'total' ? state.result.lifestyle.total : state.result.lifestyle.components[id];
@@ -676,7 +672,7 @@ function createBurger(
   const burger = {
     columnOffset,
     element: item,
-    farCenterOffsetPct: railCenterOffsetForLane(side, columnCount),
+    farCenterOffsetPct: packedRailCenterOffset(side, columnCount),
     side,
     bornAt,
     spriteWidthPct,

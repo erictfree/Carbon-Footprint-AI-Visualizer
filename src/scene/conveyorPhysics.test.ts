@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   columnsForBeltLoad,
   laneMotionTiming,
+  packedRailCenterOffset,
   projectBeltPose,
   projectWorldProgress,
   ROUND_PLAYBACK_DURATION_MS,
@@ -87,14 +88,31 @@ describe('conveyor physics', () => {
     }
   });
 
-  it('applies the inward rail nudge only when a packed lane requests it', () => {
+  it('applies a rear rail-safe nudge only when a packed lane requests it', () => {
+    expect(packedRailCenterOffset('left', 2)).toBe(0);
+    expect(packedRailCenterOffset('right', 2)).toBe(0);
+    expect(packedRailCenterOffset('left', 3)).toBe(-2.4);
+    expect(packedRailCenterOffset('right', 3)).toBe(0.6);
+
     const centeredFar = projectBeltPose(0, 'left');
-    const packedFar = projectBeltPose(0, 'left', 0, 8.5, 0.35);
+    const packedFar = projectBeltPose(
+      0,
+      'left',
+      0,
+      8.5,
+      packedRailCenterOffset('left', 3),
+    );
     const centeredNear = projectBeltPose(0.8, 'left');
-    const packedNear = projectBeltPose(0.8, 'left', 0, 8.5, 0.35);
+    const packedNear = projectBeltPose(
+      0.8,
+      'left',
+      0,
+      8.5,
+      packedRailCenterOffset('left', 3),
+    );
 
     expect(centeredFar.leftPct).toBeCloseTo(48.4, 5);
-    expect(packedFar.leftPct).toBeCloseTo(48.75, 5);
+    expect(packedFar.leftPct).toBeCloseTo(46, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 

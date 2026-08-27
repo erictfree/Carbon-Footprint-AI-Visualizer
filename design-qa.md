@@ -104,5 +104,8 @@
 - Pass — maximized Chrome at 2056 × 1080 uses a height-aware stage cap: the complete header, scoreboard, conveyor, output panels, and replay controls fit in exactly 1080 px with document `scrollHeight` equal to `innerHeight` and no horizontal overflow.
 - Pass — Start batch advances the soundtrack, timeline, LED totals, stage status, and three-wide production rows together. The browser console contains only Vite development messages and no warnings or errors.
 - Pass — the source and implementation were reviewed together in one normalized comparison; the retained utility bar and live numeric scores are intentional functional additions to the supplied reference rather than fidelity drift.
+- Arcade-background calibration evidence: `artifacts/design-qa/burger-works-arcade-rail-led-final.png` (1440 × 1100 px), captured with both lines running packed three-wide rows.
+- Pass — the new background's horizon divider is wider than Burger Belt 2. Packed left rows now receive a −2.4% rear center correction and packed right rows a +0.6% correction; both fade continuously to zero at the foreground, clearing the converging rails without moving the established front rows.
+- Pass — the LED overlays were remeasured against the new photographed recesses: both use 9.2% stage width at 41.45% stage height, with the left inset at 12.65% and right inset at 13.2%. Values and pace captions now sit centered in both black windows at every responsive scale.
 
 final result: passed

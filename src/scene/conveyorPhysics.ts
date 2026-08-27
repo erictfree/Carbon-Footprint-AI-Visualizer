@@ -36,6 +36,20 @@ function mix(from: number, to: number, amount: number): number {
 }
 
 /**
+ * Packed rows need a rear-only center correction for the current arcade
+ * photograph, whose center divider is wider at the horizon than Burger Belt 2.
+ * The offset is applied by projectBeltPose and naturally fades to zero at the
+ * foreground edge.
+ */
+export function packedRailCenterOffset(
+  side: BeltSide,
+  columnCount: number,
+): number {
+  if (columnCount < 3) return 0;
+  return side === 'left' ? -2.4 : 0.6;
+}
+
+/**
  * Projects constant world-space travel onto the photographed belt plane.
  * The fractional-linear form is the one-dimensional restriction of a planar
  * projective transform: distant screen-space steps are smaller and the same
