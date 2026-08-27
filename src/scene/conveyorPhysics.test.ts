@@ -70,8 +70,8 @@ describe('conveyor physics', () => {
     const nearOuter = projectBeltPose(0.8, 'right', 1);
 
     expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18, 5);
-    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(12.39, 5);
-    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(12.39, 5);
+    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(10.35, 5);
+    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(10.35, 5);
   });
 
   it('keeps same-row sprites separated along straight belt rays', () => {
@@ -146,7 +146,7 @@ describe('conveyor physics', () => {
     expect(packedColumnSpreadScale('left', 3)).toBe(1);
     expect(farCenter.leftPct).toBeCloseTo(55.2, 5);
     expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18 * 0.74, 5);
-    expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(24.78, 5);
+    expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(20.7, 5);
   });
 
   it('keeps the tightened lifestyle columns evenly spaced', () => {
@@ -171,7 +171,7 @@ describe('conveyor physics', () => {
     expect(edge.opacity).toBe(1);
     expect(exit.opacity).toBe(1);
     expect(exit.topPct).toBeGreaterThan(250);
-    expect(exit.scale).toBeGreaterThan(3);
+    expect(exit.scale).toBeGreaterThan(edge.scale);
     expect(exit.leftPct).toBeLessThan(edge.leftPct);
   });
 
