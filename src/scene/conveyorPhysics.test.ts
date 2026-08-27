@@ -72,7 +72,7 @@ describe('conveyor physics', () => {
   });
 
   it('keeps perspective-correct visible headway between consecutive rows', () => {
-    const worldHeadway = 0.1725;
+    const worldHeadway = 1 / 7.8;
     const frameStep = 0.0425;
     const spriteHeightPct = 24.67;
     const clearance = (backProgress: number, frontProgress: number) => {
@@ -91,18 +91,18 @@ describe('conveyor physics', () => {
   });
 
   it('fills density before increasing belt velocity for extreme rate gaps', () => {
-    const ai = laneMotionTiming(1.24 / 3, 6, 3)!;
-    const lifestyle = laneMotionTiming(887 / 3, 6, 3)!;
+    const ai = laneMotionTiming(1.24 / 3, 8, 3)!;
+    const lifestyle = laneMotionTiming(887 / 3, 8, 3)!;
 
     expect(ai.intervalMs / lifestyle.intervalMs).toBeGreaterThan(700);
     expect(ai.columnCount).toBe(1);
     expect(ai.continuousMarker).toBe(true);
     expect(ai.travelDurationMs).toBe(60_000);
     expect(lifestyle.columnCount).toBe(3);
-    expect(lifestyle.totalCapacity).toBe(18);
-    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(3_500);
-    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(3_560);
-    expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(16);
+    expect(lifestyle.totalCapacity).toBe(24);
+    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(4_700);
+    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(4_800);
+    expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(12);
   });
 
   it('uses multiple columns at the base speed before accelerating', () => {

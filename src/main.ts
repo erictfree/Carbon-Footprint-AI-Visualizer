@@ -37,7 +37,7 @@ if (!app) throw new Error('Burger Works could not find its app root.');
 const ASSET_BASE = '/assets/burger-works';
 const BURGER_KG_CO2E = 3;
 const RATE_LOOP_DURATION_MS = 60_000;
-const MAX_BURGERS_ON_LANE = 6;
+const MAX_BURGERS_ON_LANE = 8;
 
 const restored = loadSnapshot(window.localStorage);
 // Synthetic demonstrations should open identically in every browser. Only a

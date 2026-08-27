@@ -23,6 +23,7 @@ const MIN_TRAVEL_DURATION_MS = 450;
 const HEADWAY_MARGIN = 0.2;
 const FAR_COLUMN_SPREAD = 1.2;
 const NEAR_COLUMN_SPREAD = 12;
+const SPRITE_SCALE_EASING = 1.2;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -65,7 +66,14 @@ export function projectBeltPose(
   const columnSpread = mix(FAR_COLUMN_SPREAD, NEAR_COLUMN_SPREAD, beltDepth);
   const leftPct = centerLeftPct + columnOffset * columnSpread;
   const topPct = mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth);
-  const scale = mix(FAR_SCALE, NEAR_SCALE, beltDepth);
+  // The square sprite extends well above its belt contact point. A slightly
+  // delayed scale curve keeps that silhouette from consuming physical row
+  // headway in the distance. Once the contact point leaves the photographed
+  // belt, linear growth is sufficient because the sprite is already clipping.
+  const scaleDepth = beltDepth <= 1
+    ? Math.pow(Math.max(0, beltDepth), SPRITE_SCALE_EASING)
+    : beltDepth;
+  const scale = mix(FAR_SCALE, NEAR_SCALE, scaleDepth);
   const depth = beltDepth;
 
   return {
