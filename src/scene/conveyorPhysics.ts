@@ -10,12 +10,19 @@ export interface BeltPose {
 
 const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
+const EXIT_CONTACT_Y = 154;
 const FAR_SCALE = 0.07;
 const NEAR_SCALE = 1.34;
-const FAR_LEFT_X = 43.3;
-const NEAR_LEFT_X = 24.1;
-const FAR_RIGHT_X = 56.7;
-const NEAR_RIGHT_X = 75.9;
+const EXIT_SCALE = 1.75;
+const FAR_LEFT_X = 46.8;
+const NEAR_LEFT_X = 16.8;
+const EXIT_LEFT_X = 5.8434782609;
+const FAR_RIGHT_X = 53.2;
+const NEAR_RIGHT_X = 83.2;
+const EXIT_RIGHT_X = 94.1565217391;
+const BELT_PLANE_END = 0.8;
+const WINDOW_PLAYBACK_DURATION_MS = 60_000;
+const MIN_TRAVEL_DURATION_MS = 450;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -25,54 +32,72 @@ function mix(from: number, to: number, amount: number): number {
   return from + (to - from) * amount;
 }
 
-function smoothstep(from: number, to: number, value: number): number {
-  if (from === to) return value < from ? 0 : 1;
-  const t = clamp01((value - from) / (to - from));
-  return t * t * (3 - 2 * t);
-}
-
 /**
  * Projects constant world-space travel onto the photographed belt plane.
- * A pinhole-camera homography supplies the perspective, while a small
- * perceptual compensation counters the foreground speed-up that otherwise
- * makes a constant belt look as though it accelerates toward the viewer.
+ * The fractional-linear form is the one-dimensional restriction of a planar
+ * projective transform: distant screen-space steps are smaller and the same
+ * world speed appears faster as the burger approaches the camera.
  */
 export function projectWorldProgress(
   worldProgress: number,
   perspective = 0.42,
-  perceptualCompensation = 0.45,
 ): number {
   const world = clamp01(worldProgress);
-  const pinhole = world / (1 + perspective * (1 - world));
-  const compensated = 1 - (1 - world) ** 1.35;
-  return mix(pinhole, compensated, clamp01(perceptualCompensation));
+  return world / (1 + perspective * (1 - world));
 }
 
 export function projectBeltPose(worldProgress: number, side: BeltSide): BeltPose {
   const world = clamp01(worldProgress);
-  const depth = projectWorldProgress(world);
-  const leftPct = side === 'left'
-    ? mix(FAR_LEFT_X, NEAR_LEFT_X, depth)
-    : mix(FAR_RIGHT_X, NEAR_RIGHT_X, depth);
-  const fadeIn = smoothstep(0, 0.025, depth);
-  const fadeOut = 1 - smoothstep(0.965, 1, depth);
+  const onBelt = world <= BELT_PLANE_END;
+  const beltWorld = clamp01(world / BELT_PLANE_END);
+  const beltDepth = projectWorldProgress(beltWorld);
+  const exitProgress = clamp01((world - BELT_PLANE_END) / (1 - BELT_PLANE_END));
+  const nearX = side === 'left' ? NEAR_LEFT_X : NEAR_RIGHT_X;
+  const exitX = side === 'left' ? EXIT_LEFT_X : EXIT_RIGHT_X;
+  const leftPct = onBelt
+    ? mix(side === 'left' ? FAR_LEFT_X : FAR_RIGHT_X, nearX, beltDepth)
+    : mix(nearX, exitX, exitProgress);
+  const topPct = onBelt
+    ? mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth)
+    : mix(NEAR_CONTACT_Y, EXIT_CONTACT_Y, exitProgress);
+  const scale = onBelt
+    ? mix(FAR_SCALE, NEAR_SCALE, beltDepth)
+    : mix(NEAR_SCALE, EXIT_SCALE, exitProgress);
+  const depth = onBelt ? beltDepth : 1 + exitProgress * 0.2;
 
   return {
     leftPct,
-    topPct: mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, depth),
-    scale: mix(FAR_SCALE, NEAR_SCALE, depth),
-    opacity: fadeIn * fadeOut,
+    topPct,
+    scale,
+    opacity: 1,
     depth,
   };
 }
 
-/** Keeps the requested cadence unless it would exceed the readable lane load. */
-export function physicalLaunchInterval(
-  requestedIntervalMs: number,
-  travelDurationMs: number,
+export interface LaneMotionTiming {
+  intervalMs: number;
+  travelDurationMs: number;
+  visualRatePerSecond: number;
+}
+
+/**
+ * Maps one comparison window to one playback minute. Every lane begins at the
+ * same one-minute belt speed; output first increases the number of burgers on
+ * the belt, then shortens the travel time only after physical headway is full.
+ */
+export function laneMotionTiming(
+  burgersInWindow: number,
   laneCapacity: number,
-): number {
+): LaneMotionTiming | null {
+  if (!Number.isFinite(burgersInWindow) || burgersInWindow < 0.005) return null;
   const safeCapacity = Math.max(1, laneCapacity);
-  const capacityInterval = travelDurationMs / Math.max(1, safeCapacity - 0.75);
-  return Math.max(requestedIntervalMs, Math.ceil(capacityInterval));
+  const visualRatePerSecond = burgersInWindow / (WINDOW_PLAYBACK_DURATION_MS / 1_000);
+  const intervalMs = Math.max(16, Math.round(1_000 / visualRatePerSecond));
+  const headwayDurationMs = intervalMs * Math.max(1, safeCapacity - 0.75);
+  const travelDurationMs = Math.round(Math.max(
+    MIN_TRAVEL_DURATION_MS,
+    Math.min(WINDOW_PLAYBACK_DURATION_MS, headwayDurationMs),
+  ));
+
+  return { intervalMs, travelDurationMs, visualRatePerSecond };
 }

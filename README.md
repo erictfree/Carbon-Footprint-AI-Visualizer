@@ -1,6 +1,6 @@
 # Burger Works
 
-Burger Works compares estimated AI carbon with lifestyle carbon through two straight burger-production lines. Both lanes share one fixed-speed simulation clock while burger launch cadence shows relative CO₂ flow; exact window totals remain visible below the belts.
+Burger Works compares estimated AI carbon with lifestyle carbon through two straight burger-production lines. One selected comparison window plays in one minute: exact output fills each belt to safe density first, then drives belt velocity, while the authoritative totals remain visible below.
 
 ## Run locally
 
@@ -17,7 +17,8 @@ Open `http://127.0.0.1:5174/`.
 - Local CSV import with automatic or manual column mapping
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
-- Straight, perspective-matched twin conveyors with identical burgers; constant world-space travel is projected onto the photographed belt plane with perceptual foreground compensation, while log-compressed launch cadence and physical headway show the relative CO₂ rate
+- Straight, perspective-matched twin conveyors with identical burgers; a projective belt-plane transform makes distant motion slower and foreground motion faster, while exact one-minute cadence and density-first lane velocity turn extreme CO₂ gaps into visibly different production lines
+- Responsive physical headway: up to six burgers on the desktop line and three on compact screens, with burgers fully opaque until they run beyond the bottom edge
 - Immediate steady-state line density plus exact burger-equivalent output for the selected window
 - Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
 - Responsive desktop and mobile layouts
