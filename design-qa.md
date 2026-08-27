@@ -11,6 +11,7 @@
 - Corrected motion evidence: `artifacts/design-qa/burger-works-motion-pass-a.png`, `artifacts/design-qa/burger-works-motion-pass-b.png`, and `artifacts/design-qa/burger-works-motion-final.png` (1660 × 1094 px).
 - Compact implementation: `artifacts/design-qa/burger-works-motion-mobile.png` (390 × 844 px).
 - Shared-clock physics evidence: `artifacts/design-qa/burger-works-physics-typical-a.png`, `artifacts/design-qa/burger-works-physics-typical-b.png`, and `artifacts/design-qa/burger-works-physics-big-big.png` (1660 × 1094 px), plus `artifacts/design-qa/burger-works-physics-mobile.png` (390 × 844 px).
+- Cross-browser physics evidence: `artifacts/design-qa/burger-works-physics-chrome.png` (1200 × 1032 CSS px at device pixel ratio 2).
 - Browser viewports: 1280 × 900 for the original layout pass, 1660 × 1094 for the motion pass, and 390 × 844 for compact QA; captures resolve to one screenshot pixel per CSS pixel.
 - Stage CSS bounds: 1203.2 × 515.7 px, locked to the source 2128:912 aspect ratio.
 - State: typical 30-day synthetic scenario, AI usage on the left, lifestyle total on the right, continuous line running after steady-state prefill.
@@ -49,6 +50,7 @@
 - Profile input change/reset: passed; driving changes the right pace immediately and restart logic uses the new rate.
 - Restart lines: passed; the typical state immediately seeds one sparse AI burger and up to four separated lifestyle burgers on desktop (three on compact screens) before continuous cadence resumes.
 - Swap: passed; populated and sparse lane counts exchange sides while the shared travel duration and projection remain unchanged.
+- Chrome parity: passed. A tracked Chrome burger advanced 3.37–3.46% of the stage per 650 ms, matching the approximately 3.4% normalized in-app-browser curve. All 17 consecutive samples retained the same burger ID; 24 populated-lane samples retained at least 43.2 px of full-bounding-box clearance.
 - Console warnings/errors: none.
 
 ## Comparison history
