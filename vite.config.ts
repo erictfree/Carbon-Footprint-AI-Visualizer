@@ -3,8 +3,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   build: {
-    // Three.js, the GLTF loader, and environment lighting stay isolated in one lazily loaded 3D chunk.
-    chunkSizeWarningLimit: 675,
+    // Three.js, environment lighting, and offline US/world geometry stay in one lazily loaded scene chunk.
+    chunkSizeWarningLimit: 900,
   },
   plugins: [
     VitePWA({

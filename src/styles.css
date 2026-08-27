@@ -891,6 +891,7 @@ input[type="range"] {
 
 .scene-stage {
   top: 164px;
+  min-width: 174px;
 }
 
 .scene-origin span,
@@ -915,6 +916,16 @@ input[type="range"] {
   margin-top: 2px;
   color: #d7e5e5;
   font-size: 11px;
+}
+
+.scene-stage small {
+  display: block;
+  max-width: 180px;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 8px;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .scene-cinematic-status {

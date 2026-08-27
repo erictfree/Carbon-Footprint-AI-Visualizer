@@ -7,11 +7,13 @@ describe('distanceStageForMiles', () => {
     expect(distanceStageForMiles(0.5).id).toBe('neighborhood');
     expect(distanceStageForMiles(13).id).toBe('regional');
     expect(distanceStageForMiles(650).id).toBe('continental');
+    expect(distanceStageForMiles(9_341).id).toBe('global');
   });
 
   it('switches stages at the documented boundaries', () => {
     expect(distanceStageForMiles(10 / 5_280).id).toBe('neighborhood');
     expect(distanceStageForMiles(2).id).toBe('regional');
     expect(distanceStageForMiles(50).id).toBe('continental');
+    expect(distanceStageForMiles(2_500).id).toBe('global');
   });
 });

@@ -42,6 +42,11 @@ const CAR_ASSET_SOURCE = {
   licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
 } as const;
 
+const MAP_SOURCES = {
+  world: 'https://github.com/topojson/world-atlas',
+  us: 'https://github.com/topojson/us-atlas',
+} as const;
+
 const restored = loadSnapshot(window.localStorage);
 const initialProfile = restored?.profile ?? DEFAULT_PROFILE;
 const initialAggregate = restored?.aggregate ?? null;
@@ -67,6 +72,7 @@ app.innerHTML = `
       <div class="scene-stage">
         <span>Distance staging</span>
         <strong id="scene-stage">Regional scale</strong>
+        <small id="scene-stage-note">Regional distance field</small>
       </div>
       <div class="scene-label scene-label--ai">
         <span class="scene-label__dot"></span>
@@ -256,6 +262,7 @@ app.innerHTML = `
         <div><dt>Window</dt><dd>AI and lifestyle values are both normalized to the CSV span, 7 days, or 30 days.</dd></div>
         <div><dt>Conversion</dt><dd>kg CO₂e → selected grid-equivalent kWh → selected Model 3 mi/kWh.</dd></div>
         <div><dt>3D asset</dt><dd>${CAR_ASSET_SOURCE.label}; rescaled and material-tuned for PromptMiles under CC BY 4.0.</dd></div>
+        <div><dt>Map staging</dt><dd>Natural Earth 1:110m world boundaries and US Census state boundaries, projected locally for offline display. This checkpoint is anchored to the default Austin origin; arbitrary-city geocoding follows. Range rings are distance-scaled; eastbound routes are illustrative.</dd></div>
         <div><dt>Excluded</dt><dd>Water, regional goods/services baseline, training, image generation, and retries.</dd></div>
       </dl>
       <div class="methodology__links">
@@ -263,6 +270,8 @@ app.innerHTML = `
         <a href="https://ecologits.ai/latest/methodology/llm_inference/" target="_blank" rel="noreferrer">EcoLogits methodology</a>
         <a href="${CAR_ASSET_SOURCE.url}" target="_blank" rel="noreferrer">Model 3 asset</a>
         <a href="${CAR_ASSET_SOURCE.licenseUrl}" target="_blank" rel="noreferrer">CC BY 4.0 license</a>
+        <a href="${MAP_SOURCES.world}" target="_blank" rel="noreferrer">Natural Earth world map</a>
+        <a href="${MAP_SOURCES.us}" target="_blank" rel="noreferrer">US Census map</a>
       </div>
       <p class="dialog-source">${MASLEY_SOURCE.version} · Updated ${MASLEY_SOURCE.updated}</p>
     </form>
@@ -451,6 +460,7 @@ function renderSelectedComparison(state: AppState): void {
   });
   scene.setDistances(state.result.aiMiles.central, impact.miles, IMPACT_COLORS[activeComparison]);
   byId('scene-stage').textContent = scene.distanceStageLabel;
+  byId('scene-stage-note').textContent = scene.distanceStageNote;
 }
 
 function renderImpactCards(state: AppState): void {

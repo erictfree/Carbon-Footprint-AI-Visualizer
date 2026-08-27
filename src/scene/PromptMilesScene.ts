@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {
+  createGeoMapLayers,
+  mapRadiusForMiles,
+  updateGeoMapLayer,
+  type GeoMapMode,
+} from './geoMap';
 
 const PRODUCTION_CAR_URL = new URL(
   '../../models/tesla-model-3-2024/source/2024_tesla_model_3.glb',
@@ -13,11 +19,13 @@ const ROUTE_SEGMENTS = 96;
 const ROUTE_TWEEN_MS = 620;
 const CINEMATIC_DURATION_MS = 9_000;
 
-type DistanceStageId = 'driveway' | 'neighborhood' | 'regional' | 'continental';
+type DistanceStageId = 'driveway' | 'neighborhood' | 'regional' | 'continental' | 'global';
 
 interface DistanceStage {
   id: DistanceStageId;
   label: string;
+  note: string;
+  mapMode: GeoMapMode;
   camera: [number, number, number];
   target: [number, number, number];
 }
@@ -34,26 +42,42 @@ const DISTANCE_STAGES: Record<DistanceStageId, DistanceStage> = {
   driveway: {
     id: 'driveway',
     label: 'Driveway scale',
+    note: 'True-scale local distance',
+    mapMode: 'none',
     camera: [4.25, 1.8, 4.4],
     target: [0.6, 0.58, 0],
   },
   neighborhood: {
     id: 'neighborhood',
     label: 'Neighborhood scale',
+    note: 'Local-road distance field',
+    mapMode: 'none',
     camera: [6.15, 3.05, 6.9],
     target: [1.25, 0.68, 0],
   },
   regional: {
     id: 'regional',
     label: 'Regional scale',
+    note: 'Regional distance field',
+    mapMode: 'none',
     camera: [7.65, 4.25, 8.85],
     target: [1.55, 0.78, 0],
   },
   continental: {
     id: 'continental',
-    label: 'Continental scale',
+    label: 'US map scale',
+    note: 'True range ring · illustrative route · short path enlarged',
+    mapMode: 'us',
     camera: [8.75, 6.6, 13.7],
     target: [2, 0.72, 0],
+  },
+  global: {
+    id: 'global',
+    label: 'World map scale',
+    note: 'True range ring · illustrative route · short path enlarged',
+    mapMode: 'world',
+    camera: [7.8, 11.6, 17.8],
+    target: [3.2, 0.25, 0],
   },
 };
 
@@ -61,7 +85,8 @@ export function distanceStageForMiles(miles: number): DistanceStage {
   if (miles < 10 / 5_280) return DISTANCE_STAGES.driveway;
   if (miles < 2) return DISTANCE_STAGES.neighborhood;
   if (miles < 50) return DISTANCE_STAGES.regional;
-  return DISTANCE_STAGES.continental;
+  if (miles < 2_500) return DISTANCE_STAGES.continental;
+  return DISTANCE_STAGES.global;
 }
 
 function eased(progress: number): number {
@@ -201,13 +226,15 @@ function createDistanceField(): THREE.Group {
   field.position.set(PATH_ORIGIN_X, 0.028, 0);
 
   [2.5, 5, 8.5, 13, 19, 27].forEach((radius, index) => {
+    const baseOpacity = Math.max(0.025, 0.1 - index * 0.012);
     const material = new THREE.MeshBasicMaterial({
       color: index % 2 === 0 ? 0x42e8df : 0x4b8e98,
       transparent: true,
-      opacity: Math.max(0.025, 0.1 - index * 0.012),
+      opacity: baseOpacity,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    material.userData.baseOpacity = baseOpacity;
     const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.018, radius + 0.018, 160), material);
     ring.rotation.x = -Math.PI / 2;
     field.add(ring);
@@ -256,16 +283,21 @@ export class PromptMilesScene {
   private readonly headlights: THREE.SpotLight[] = [];
   private readonly stars = createStars();
   private readonly distanceField = createDistanceField();
+  private readonly geoMaps = createGeoMapLayers();
   private readonly timer = new THREE.Timer();
   private readonly resizeObserver: ResizeObserver;
   private readonly pathGroup = new THREE.Group();
   private readonly cinematicCameraStart = new THREE.Vector3(PATH_ORIGIN_X + 2.35, 1.45, 3.15);
   private readonly cinematicTargetStart = new THREE.Vector3(PATH_ORIGIN_X - 1.25, 0.68, 0);
   private environmentTexture: THREE.Texture | null = null;
+  private grid: THREE.GridHelper | null = null;
   private currentStage = DISTANCE_STAGES.regional;
+  private usMapVisibility = 0;
+  private worldMapVisibility = 0;
   private cameraTransition: CameraTransition | null = null;
   private cinematicStartedAt: number | null = null;
   private cinematicLabelsRevealed = false;
+  private cinematicMapReveal = 1;
   private routesReady = false;
   private carAssetReady = false;
   private hasAutoPlayed = false;
@@ -335,6 +367,7 @@ export class PromptMilesScene {
     grid.material.transparent = true;
     grid.material.opacity = 0.17;
     grid.position.y = 0.012;
+    this.grid = grid;
     this.scene.add(grid);
 
     this.car.name = '2024 Tesla Model 3';
@@ -349,7 +382,14 @@ export class PromptMilesScene {
     this.container.dataset.cinematic = 'idle';
     this.container.dataset.distanceStage = this.currentStage.id;
 
-    this.scene.add(this.stars, this.distanceField, this.car, this.pathGroup);
+    this.scene.add(
+      this.stars,
+      this.distanceField,
+      this.geoMaps.us.group,
+      this.geoMaps.world.group,
+      this.car,
+      this.pathGroup,
+    );
     this.loadProductionCar();
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -443,6 +483,7 @@ export class PromptMilesScene {
   }
 
   setDistances(aiMiles: number, lifestyleMiles: number, lifestyleColor = 0xffa856): void {
+    const nextStage = distanceStageForMiles(Math.max(aiMiles, lifestyleMiles));
     const previousLengths = this.pathGroup.children.map((route) => (
       Number(route.userData.visualLength ?? 0) * route.scale.x
     ));
@@ -467,14 +508,17 @@ export class PromptMilesScene {
 
     let routeIndex = 0;
     if (aiMiles > 0) {
-      addRoute(this.createRoute(aiMiles, -0.52, 0x42e8df, 0.5), previousLengths[routeIndex]);
+      const aiLane = nextStage.mapMode === 'none' ? -0.52 : -1;
+      addRoute(this.createRoute(aiMiles, aiLane, 0x42e8df, 0.5, nextStage.mapMode), previousLengths[routeIndex]);
       routeIndex += 1;
     }
     if (lifestyleMiles > 0) {
-      addRoute(this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44), previousLengths[routeIndex]);
+      addRoute(
+        this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44, nextStage.mapMode),
+        previousLengths[routeIndex],
+      );
     }
 
-    const nextStage = distanceStageForMiles(Math.max(aiMiles, lifestyleMiles));
     const stageChanged = nextStage.id !== this.currentStage.id;
     const hadRoutes = this.routesReady;
     this.currentStage = nextStage;
@@ -492,14 +536,35 @@ export class PromptMilesScene {
     return this.currentStage.label;
   }
 
-  private createRoute(miles: number, lane: number, color: number, width: number): THREE.Group {
-    const length = visualLength(miles);
-    const points = [
-      new THREE.Vector3(0, 0.13, lane),
-      new THREE.Vector3(length * 0.22, 0.16, lane * 1.1),
-      new THREE.Vector3(length * 0.52, 0.2 + Math.min(length / 90, 0.18), lane * 1.8),
-      new THREE.Vector3(length, 0.26 + Math.min(length / 55, 0.38), lane * 2.4),
-    ];
+  get distanceStageNote(): string {
+    return this.currentStage.note;
+  }
+
+  private createRoute(
+    miles: number,
+    lane: number,
+    color: number,
+    width: number,
+    mapMode: GeoMapMode,
+  ): THREE.Group {
+    const mappedRadius = mapRadiusForMiles(miles, mapMode);
+    const length = mapMode === 'none'
+      ? visualLength(miles)
+      : THREE.MathUtils.clamp(mappedRadius, 2.2, 30);
+    const mapBend = mapMode === 'none' ? 0 : -Math.min(2.6, length * 0.14);
+    const points = mapMode === 'none'
+      ? [
+          new THREE.Vector3(0, 0.13, lane),
+          new THREE.Vector3(length * 0.22, 0.16, lane * 1.1),
+          new THREE.Vector3(length * 0.52, 0.2 + Math.min(length / 90, 0.18), lane * 1.8),
+          new THREE.Vector3(length, 0.26 + Math.min(length / 55, 0.38), lane * 2.4),
+        ]
+      : [
+          new THREE.Vector3(0, 0.13, lane),
+          new THREE.Vector3(length * 0.24, 0.18, lane + mapBend * 0.65),
+          new THREE.Vector3(length * 0.62, 0.32, lane + mapBend),
+          new THREE.Vector3(length, 0.5, lane + mapBend * 0.35),
+        ];
     const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.45);
     const route = new THREE.Group();
     route.name = `${miles.toFixed(1)} mile route`;
@@ -513,7 +578,8 @@ export class PromptMilesScene {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    const aura = new THREE.Mesh(createRibbonGeometry(curve, width * 1.85, 0.055), auraMaterial);
+    const routeWidth = mapMode === 'none' ? width : width * 0.7;
+    const aura = new THREE.Mesh(createRibbonGeometry(curve, routeWidth * 1.85, 0.055), auraMaterial);
     route.add(aura);
 
     const roadColor = new THREE.Color(color).lerp(new THREE.Color(0x07131d), 0.78);
@@ -527,7 +593,7 @@ export class PromptMilesScene {
       metalness: 0.1,
       side: THREE.DoubleSide,
     });
-    const road = new THREE.Mesh(createRibbonGeometry(curve, width, 0.07), roadMaterial);
+    const road = new THREE.Mesh(createRibbonGeometry(curve, routeWidth, 0.07), roadMaterial);
     road.receiveShadow = true;
     route.add(road);
 
@@ -539,7 +605,7 @@ export class PromptMilesScene {
       opacity: 0.92,
       roughness: 0.25,
     });
-    const dashGeometry = new THREE.BoxGeometry(0.48, 0.025, Math.max(0.035, width * 0.1));
+    const dashGeometry = new THREE.BoxGeometry(0.48, 0.025, Math.max(0.035, routeWidth * 0.1));
     for (let progress = 0.08; progress < 0.98; progress += 0.09) {
       const point = curve.getPoint(progress);
       const tangent = curve.getTangent(progress).normalize();
@@ -558,6 +624,25 @@ export class PromptMilesScene {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    if (mapMode !== 'none' && mappedRadius >= 0.14) {
+      const reachRadius = Math.min(mappedRadius, 30);
+      const reachMaterial = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.24,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const reachRing = new THREE.Mesh(
+        new THREE.RingGeometry(Math.max(0.01, reachRadius - 0.035), reachRadius + 0.035, 180),
+        reachMaterial,
+      );
+      reachRing.rotation.x = -Math.PI / 2;
+      reachRing.position.y = 0.082;
+      reachRing.userData.routeProgress = 0.82;
+      route.add(reachRing);
+    }
     [0.25, 0.5, 0.75].forEach((progress) => {
       const point = curve.getPoint(progress);
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.14, 28), ringMaterial);
@@ -655,6 +740,7 @@ export class PromptMilesScene {
 
     this.cinematicStartedAt = performance.now();
     this.cinematicLabelsRevealed = false;
+    this.cinematicMapReveal = 0;
     this.cameraTransition = null;
     this.controls.enabled = false;
     this.camera.position.copy(this.cinematicCameraStart);
@@ -673,6 +759,7 @@ export class PromptMilesScene {
   private finishCinematic(): void {
     this.cinematicStartedAt = null;
     this.cinematicLabelsRevealed = false;
+    this.cinematicMapReveal = 1;
     this.car.position.x = PATH_ORIGIN_X - CAR_LENGTH / 2;
     this.pathGroup.children.forEach((route) => this.setRouteReveal(route, 1));
     this.headlights.forEach((light) => { light.intensity = 18; });
@@ -685,6 +772,7 @@ export class PromptMilesScene {
   private updateCinematic(timestamp: number): void {
     if (this.cinematicStartedAt === null) return;
     const elapsed = timestamp - this.cinematicStartedAt;
+    this.cinematicMapReveal = eased((elapsed - 2_350) / 3_200);
     const cameraProgress = eased((elapsed - 850) / 6_900);
     const settledCamera = new THREE.Vector3().fromArray(this.currentStage.camera);
     const settledTarget = new THREE.Vector3().fromArray(this.currentStage.target);
@@ -716,6 +804,26 @@ export class PromptMilesScene {
     if (elapsed >= CINEMATIC_DURATION_MS) this.finishCinematic();
   }
 
+  private updateMapLayers(): void {
+    const reveal = this.cinematicMapReveal;
+    const usTarget = this.currentStage.mapMode === 'us' ? reveal : 0;
+    const worldTarget = this.currentStage.mapMode === 'world' ? reveal : 0;
+    this.usMapVisibility = THREE.MathUtils.lerp(this.usMapVisibility, usTarget, 0.075);
+    this.worldMapVisibility = THREE.MathUtils.lerp(this.worldMapVisibility, worldTarget, 0.075);
+    updateGeoMapLayer(this.geoMaps.us, this.usMapVisibility);
+    updateGeoMapLayer(this.geoMaps.world, this.worldMapVisibility);
+
+    const mapVisibility = Math.max(this.usMapVisibility, this.worldMapVisibility);
+    this.distanceField.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      const baseOpacity = Number(material.userData.baseOpacity ?? material.opacity);
+      material.opacity = baseOpacity * THREE.MathUtils.lerp(1, 0.12, mapVisibility);
+    });
+    if (this.grid) this.grid.material.opacity = THREE.MathUtils.lerp(0.17, 0.035, mapVisibility);
+  }
+
   private resize(): void {
     const width = Math.max(1, this.container.clientWidth);
     const height = Math.max(1, this.container.clientHeight);
@@ -732,6 +840,7 @@ export class PromptMilesScene {
     const elapsed = this.timer.getElapsed();
     this.updateTransitions(frameTime);
     this.updateCinematic(frameTime);
+    this.updateMapLayers();
     this.car.position.y = Math.sin(elapsed * 0.7) * 0.008;
     this.stars.rotation.y = elapsed * 0.0025;
     if (this.cinematicStartedAt === null) {
