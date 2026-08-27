@@ -14,6 +14,7 @@ Open `http://127.0.0.1:5174/`.
 ## What works
 
 - First-run setup dialog styled from the supplied bright burger-game reference, with live 30-day CO₂ previews and functional light-chat, coding-day, and agent-marathon presets
+- Main factory board styled from `interfaceinspiration.jpg`: red arcade cabinet, outlined score typography, yellow output counters, green batch-status panel, and oversized music/start controls
 - Prompt, model, answer-length, prompts-per-day, grid, diet, home, driving, flight, and comparison-opponent inputs
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over a fixed 30-day game window
