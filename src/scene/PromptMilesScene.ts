@@ -4,6 +4,10 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   createGeoMapLayers,
+  EARTH_RADIUS_MILES,
+  GLOBE_CENTER,
+  GLOBE_RADIUS,
+  globePositionAtDistance,
   mapRadiusForMiles,
   updateGeoMapLayer,
   type GeoMapMode,
@@ -18,6 +22,7 @@ const CAR_LENGTH = 4.45;
 const ROUTE_SEGMENTS = 96;
 const ROUTE_TWEEN_MS = 620;
 const CINEMATIC_DURATION_MS = 9_000;
+const GLOBAL_AI_INSET_CENTER = new THREE.Vector3(-1, 3.15, 0.35);
 
 type DistanceStageId = 'driveway' | 'neighborhood' | 'regional' | 'continental' | 'global';
 
@@ -73,11 +78,11 @@ const DISTANCE_STAGES: Record<DistanceStageId, DistanceStage> = {
   },
   global: {
     id: 'global',
-    label: 'World map scale',
-    note: 'True range ring · illustrative route · short path enlarged',
+    label: '3D globe scale',
+    note: 'AI local lens · lifestyle geodesic journey',
     mapMode: 'world',
-    camera: [7.8, 11.6, 17.8],
-    target: [3.2, 0.25, 0],
+    camera: [11.7, 8.2, 15.6],
+    target: [2, 3.05, 0],
   },
 };
 
@@ -179,10 +184,16 @@ function createFallbackCar(): THREE.Group {
 
 function disposeObject(root: THREE.Object3D): void {
   root.traverse((object) => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.geometry?.dispose();
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const sprite = object as THREE.Sprite;
+    if (sprite.isSprite) {
+      sprite.material.map?.dispose();
+      sprite.material.dispose();
+      return;
+    }
+    const renderable = object as THREE.Mesh;
+    if (!renderable.geometry || !renderable.material) return;
+    renderable.geometry.dispose();
+    const materials = Array.isArray(renderable.material) ? renderable.material : [renderable.material];
     for (const material of materials) material?.dispose();
   });
 }
@@ -272,6 +283,47 @@ function visualLength(miles: number): number {
   return THREE.MathUtils.clamp(3.2 + Math.log10(Math.max(0, miles) * 12 + 1) * 4.1, 3.2, 28);
 }
 
+function createSceneLabel(text: string, color: number, width = 320): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = 72;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const accent = new THREE.Color(color).getStyle();
+    context.fillStyle = 'rgba(5, 18, 26, 0.9)';
+    context.beginPath();
+    context.roundRect(3, 5, width - 6, 62, 18);
+    context.fill();
+    context.strokeStyle = accent;
+    context.globalAlpha = 0.72;
+    context.lineWidth = 2;
+    context.stroke();
+    context.globalAlpha = 1;
+    context.fillStyle = '#e8f8f7';
+    context.font = '700 24px Inter, system-ui, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(text, width / 2, 36);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2.2, 0.5, 1);
+  return sprite;
+}
+
+function orientToSurface(object: THREE.Object3D, position: THREE.Vector3): void {
+  const normal = position.clone().sub(GLOBE_CENTER).normalize();
+  object.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+}
+
 export class PromptMilesScene {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
@@ -290,10 +342,12 @@ export class PromptMilesScene {
   private readonly cinematicCameraStart = new THREE.Vector3(PATH_ORIGIN_X + 2.35, 1.45, 3.15);
   private readonly cinematicTargetStart = new THREE.Vector3(PATH_ORIGIN_X - 1.25, 0.68, 0);
   private environmentTexture: THREE.Texture | null = null;
+  private ground: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null = null;
   private grid: THREE.GridHelper | null = null;
   private currentStage = DISTANCE_STAGES.regional;
   private usMapVisibility = 0;
   private worldMapVisibility = 0;
+  private carVisualScale = 1;
   private cameraTransition: CameraTransition | null = null;
   private cinematicStartedAt: number | null = null;
   private cinematicLabelsRevealed = false;
@@ -357,10 +411,12 @@ export class PromptMilesScene {
       color: 0x0a171d,
       roughness: 0.86,
       metalness: 0.08,
+      transparent: true,
     });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(90, 90), groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
+    this.ground = ground;
     this.scene.add(ground);
 
     const grid = new THREE.GridHelper(70, 70, 0x1b6a70, 0x11343b);
@@ -495,7 +551,12 @@ export class PromptMilesScene {
     const addRoute = (route: THREE.Group, previousLength: number | undefined) => {
       const nextLength = Number(route.userData.visualLength);
       const startingLength = previousLength ?? (previousLengths.length > 0 ? nextLength * 0.01 : undefined);
-      if (startingLength && nextLength > 0 && this.cinematicStartedAt === null) {
+      if (
+        !route.userData.disableScaleTween
+        && startingLength
+        && nextLength > 0
+        && this.cinematicStartedAt === null
+      ) {
         route.scale.x = THREE.MathUtils.clamp(startingLength / nextLength, 0.01, 4.5);
         route.userData.scaleTween = {
           from: route.scale.x,
@@ -509,12 +570,15 @@ export class PromptMilesScene {
     let routeIndex = 0;
     if (aiMiles > 0) {
       const aiLane = nextStage.mapMode === 'none' ? -0.52 : -1;
-      addRoute(this.createRoute(aiMiles, aiLane, 0x42e8df, 0.5, nextStage.mapMode), previousLengths[routeIndex]);
+      addRoute(
+        this.createRoute(aiMiles, aiLane, 0x42e8df, 0.5, nextStage.mapMode, 'ai'),
+        previousLengths[routeIndex],
+      );
       routeIndex += 1;
     }
     if (lifestyleMiles > 0) {
       addRoute(
-        this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44, nextStage.mapMode),
+        this.createRoute(lifestyleMiles, 0.52, lifestyleColor, 0.44, nextStage.mapMode, 'lifestyle'),
         previousLengths[routeIndex],
       );
     }
@@ -546,7 +610,13 @@ export class PromptMilesScene {
     color: number,
     width: number,
     mapMode: GeoMapMode,
+    role: 'ai' | 'lifestyle',
   ): THREE.Group {
+    if (mapMode === 'world') {
+      return role === 'ai'
+        ? this.createGlobalAiInset(miles, color)
+        : this.createGlobeRoute(miles, color, width);
+    }
     const mappedRadius = mapRadiusForMiles(miles, mapMode);
     const length = mapMode === 'none'
       ? visualLength(miles)
@@ -676,6 +746,191 @@ export class PromptMilesScene {
     return route;
   }
 
+  private createGlobalAiInset(miles: number, color: number): THREE.Group {
+    const route = new THREE.Group();
+    route.name = `${miles.toFixed(1)} mile Austin local lens`;
+    route.userData.disableScaleTween = true;
+    route.userData.visualLength = Math.max(miles, 0.001);
+
+    const lens = new THREE.Group();
+    lens.position.copy(GLOBAL_AI_INSET_CENTER);
+    lens.lookAt(new THREE.Vector3().fromArray(DISTANCE_STAGES.global.camera));
+    route.add(lens);
+
+    const discMaterial = new THREE.MeshBasicMaterial({
+      color: 0x061821,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.35, 72), discMaterial);
+    disc.userData.routeProgress = 0.06;
+    lens.add(disc);
+
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    [0.42, 0.82, 1.28].forEach((radius, index) => {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.012, radius + 0.012, 72), ringMaterial);
+      ring.position.z = 0.018;
+      ring.userData.routeProgress = 0.12 + index * 0.04;
+      lens.add(ring);
+    });
+
+    const localLength = THREE.MathUtils.clamp(0.72 + Math.log10(miles + 1) * 0.58, 0.78, 1.55);
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.72, -0.28, 0.065),
+      new THREE.Vector3(-0.2, -0.08, 0.09),
+      new THREE.Vector3(localLength * 0.28, 0.18, 0.1),
+      new THREE.Vector3(localLength * 0.52, 0.46, 0.11),
+    ]);
+    const auraMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const aura = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, 0.11, 8, false), auraMaterial);
+    lens.add(aura);
+
+    const pathMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0b5659,
+      emissive: color,
+      emissiveIntensity: 1.6,
+      transparent: true,
+      opacity: 0.96,
+      roughness: 0.45,
+    });
+    const path = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, 0.045, 8, false), pathMaterial);
+    lens.add(path);
+
+    const markerMaterial = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 4,
+      transparent: true,
+      opacity: 0.96,
+    });
+    [0, 1].forEach((progress) => {
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(progress === 0 ? 0.095 : 0.075, 18, 12), markerMaterial);
+      marker.position.copy(curve.getPoint(progress));
+      marker.userData.routeProgress = progress === 0 ? 0.18 : 0.94;
+      lens.add(marker);
+    });
+
+    const label = createSceneLabel(`AI · AUSTIN · ${Math.round(miles).toLocaleString('en-US')} MI`, color);
+    label.position.copy(GLOBAL_AI_INSET_CENTER).add(new THREE.Vector3(0, 1.65, 0.2));
+    label.userData.routeProgress = 0.35;
+    route.add(label);
+
+    route.userData.auraMaterial = auraMaterial;
+    route.userData.markerMaterial = markerMaterial;
+    route.userData.revealMeshes = [aura, path];
+    return route;
+  }
+
+  private createGlobeRoute(miles: number, color: number, width: number): THREE.Group {
+    const route = new THREE.Group();
+    route.name = `${miles.toFixed(1)} mile globe journey`;
+    route.userData.disableScaleTween = true;
+    route.userData.visualLength = Math.max(miles, 0.001);
+
+    const maximumRenderedMiles = EARTH_RADIUS_MILES * Math.PI * 1.92;
+    const renderedMiles = Math.min(miles, maximumRenderedMiles);
+    const bearing = 52;
+    const points: THREE.Vector3[] = [];
+    for (let index = 0; index <= 160; index += 1) {
+      const progress = index / 160;
+      const altitude = 0.1 + Math.pow(Math.sin(Math.PI * progress), 1.25) * 0.27;
+      points.push(globePositionAtDistance(renderedMiles * progress, bearing, altitude));
+    }
+    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.45);
+    const routeRadius = Math.max(0.035, width * 0.11);
+
+    const auraMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const aura = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, routeRadius * 2.4, 8, false), auraMaterial);
+    route.add(aura);
+
+    const pathMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color).lerp(new THREE.Color(0x06131d), 0.62),
+      emissive: color,
+      emissiveIntensity: 1.18,
+      transparent: true,
+      opacity: 0.98,
+      roughness: 0.46,
+      metalness: 0.08,
+    });
+    const path = new THREE.Mesh(new THREE.TubeGeometry(curve, 160, routeRadius, 8, false), pathMaterial);
+    route.add(path);
+
+    const markerMaterial = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 4.2,
+      transparent: true,
+      opacity: 0.96,
+      roughness: 0.25,
+    });
+    [0, 0.25, 0.5, 0.75, 1].forEach((progress, index) => {
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(index === 0 || index === 4 ? 0.105 : 0.055, 20, 14),
+        markerMaterial,
+      );
+      marker.position.copy(curve.getPoint(progress));
+      marker.userData.routeProgress = Math.max(0.14, progress);
+      route.add(marker);
+    });
+
+    if (miles < EARTH_RADIUS_MILES * Math.PI) {
+      const reachPoints: THREE.Vector3[] = [];
+      for (let bearingIndex = 0; bearingIndex < 180; bearingIndex += 1) {
+        reachPoints.push(globePositionAtDistance(miles, bearingIndex * 2, 0.055));
+      }
+      const reachMaterial = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const reachGeometry = new THREE.BufferGeometry().setFromPoints(reachPoints);
+      const reachRing = new THREE.LineLoop(reachGeometry, reachMaterial);
+      reachRing.userData.routeProgress = 0.8;
+      route.add(reachRing);
+    }
+
+    const endpoint = curve.getPoint(1);
+    const endpointRing = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 10, 44), markerMaterial);
+    endpointRing.position.copy(endpoint);
+    orientToSurface(endpointRing, endpoint);
+    endpointRing.userData.routeProgress = 0.96;
+    route.add(endpointRing);
+
+    const label = createSceneLabel(`LIFESTYLE · ${Math.round(miles).toLocaleString('en-US')} MI`, color);
+    label.position.copy(GLOBE_CENTER).add(new THREE.Vector3(0.25, GLOBE_RADIUS + 0.62, 0.15));
+    label.scale.set(2.45, 0.55, 1);
+    label.userData.routeProgress = 0.98;
+    route.add(label);
+
+    route.userData.auraMaterial = auraMaterial;
+    route.userData.markerMaterial = markerMaterial;
+    route.userData.revealMeshes = [aura, path];
+    return route;
+  }
+
   private setRouteReveal(route: THREE.Object3D, progress: number): void {
     const reveal = THREE.MathUtils.clamp(progress, 0, 1);
     const revealMeshes = route.userData.revealMeshes as THREE.Mesh[] | undefined;
@@ -684,7 +939,7 @@ export class PromptMilesScene {
       const drawCount = Math.floor((available * reveal) / 6) * 6;
       mesh.geometry.setDrawRange(0, Math.min(available, drawCount));
     });
-    route.children.forEach((child) => {
+    route.traverse((child) => {
       const markerProgress = child.userData.routeProgress as number | undefined;
       if (markerProgress !== undefined) child.visible = reveal >= markerProgress;
     });
@@ -790,7 +1045,8 @@ export class PromptMilesScene {
     });
 
     this.pathGroup.children.forEach((route, index) => {
-      const revealStart = index === 0 ? 900 : 1_450;
+      const globeDelay = this.currentStage.mapMode === 'world' ? 1_450 : 0;
+      const revealStart = (index === 0 ? 900 : 1_450) + globeDelay;
       const revealDuration = index === 0 ? 2_900 : 4_250;
       this.setRouteReveal(route, eased((elapsed - revealStart) / revealDuration));
     });
@@ -821,7 +1077,22 @@ export class PromptMilesScene {
       const baseOpacity = Number(material.userData.baseOpacity ?? material.opacity);
       material.opacity = baseOpacity * THREE.MathUtils.lerp(1, 0.12, mapVisibility);
     });
-    if (this.grid) this.grid.material.opacity = THREE.MathUtils.lerp(0.17, 0.035, mapVisibility);
+    if (this.grid) {
+      this.grid.material.opacity = this.worldMapVisibility > 0.01
+        ? THREE.MathUtils.lerp(0.17, 0, this.worldMapVisibility)
+        : THREE.MathUtils.lerp(0.17, 0.035, this.usMapVisibility);
+    }
+    if (this.ground) {
+      this.ground.material.opacity = THREE.MathUtils.lerp(1, 0.04, this.worldMapVisibility);
+      this.ground.visible = this.ground.material.opacity > 0.045;
+    }
+
+    this.carVisualScale = 1 - eased(this.worldMapVisibility / 0.56);
+    this.car.scale.setScalar(Math.max(0.001, this.carVisualScale));
+    this.car.visible = this.carVisualScale > 0.025;
+    if (this.cinematicStartedAt !== null) {
+      this.headlights.forEach((light) => { light.intensity *= this.carVisualScale; });
+    }
   }
 
   private resize(): void {
@@ -845,7 +1116,7 @@ export class PromptMilesScene {
     this.stars.rotation.y = elapsed * 0.0025;
     if (this.cinematicStartedAt === null) {
       this.headlights.forEach((light, index) => {
-        light.intensity = 18 + Math.sin(elapsed * 1.15 + index * 0.7) * 2.2;
+        light.intensity = (18 + Math.sin(elapsed * 1.15 + index * 0.7) * 2.2) * this.carVisualScale;
       });
     }
     this.pathGroup.children.forEach((route, index) => {

@@ -262,7 +262,7 @@ app.innerHTML = `
         <div><dt>Window</dt><dd>AI and lifestyle values are both normalized to the CSV span, 7 days, or 30 days.</dd></div>
         <div><dt>Conversion</dt><dd>kg CO₂e → selected grid-equivalent kWh → selected Model 3 mi/kWh.</dd></div>
         <div><dt>3D asset</dt><dd>${CAR_ASSET_SOURCE.label}; rescaled and material-tuned for PromptMiles under CC BY 4.0.</dd></div>
-        <div><dt>Map staging</dt><dd>Natural Earth 1:110m world boundaries and US Census state boundaries, projected locally for offline display. This checkpoint is anchored to the default Austin origin; arbitrary-city geocoding follows. Range rings are distance-scaled; eastbound routes are illustrative.</dd></div>
+        <div><dt>Map staging</dt><dd>Natural Earth 1:110m boundaries are projected onto a 3D globe; US Census state boundaries use a local flat projection. This checkpoint is anchored to the default Austin origin; arbitrary-city geocoding follows. The global lifestyle journey follows a great-circle bearing, while the AI journey uses a labeled Austin-scale lens.</dd></div>
         <div><dt>Excluded</dt><dd>Water, regional goods/services baseline, training, image generation, and retries.</dd></div>
       </dl>
       <div class="methodology__links">

@@ -14,7 +14,9 @@ export interface GeoMapLayer {
 const ORIGIN = { latitude: 30.2672, longitude: -97.7431 } as const;
 const PATH_ORIGIN_X = 1.45;
 const US_SCALE = 0.5;
-const WORLD_SCALE = 0.115;
+export const EARTH_RADIUS_MILES = 3_958.8;
+export const GLOBE_RADIUS = 3.75;
+export const GLOBE_CENTER = new THREE.Vector3(5.6, 3.05, 0);
 const LONGITUDE_COSINE = Math.cos(THREE.MathUtils.degToRad(ORIGIN.latitude));
 
 interface City {
@@ -58,12 +60,43 @@ function projectUs(coordinate: number[]): THREE.Vector2 | null {
   );
 }
 
-function projectWorld(coordinate: number[]): THREE.Vector2 | null {
-  const [longitude, latitude] = coordinate;
-  if (longitude === undefined || latitude === undefined) return null;
-  return new THREE.Vector2(
-    PATH_ORIGIN_X + wrapLongitude(longitude) * WORLD_SCALE,
-    -(latitude - ORIGIN.latitude) * WORLD_SCALE,
+export function globePosition(
+  latitude: number,
+  longitude: number,
+  altitude = 0,
+): THREE.Vector3 {
+  const latitudeRadians = THREE.MathUtils.degToRad(latitude);
+  const longitudeRadians = THREE.MathUtils.degToRad(wrapLongitude(longitude));
+  const radius = GLOBE_RADIUS + altitude;
+  const latitudeCosine = Math.cos(latitudeRadians);
+  return new THREE.Vector3(
+    GLOBE_CENTER.x + radius * latitudeCosine * Math.sin(longitudeRadians),
+    GLOBE_CENTER.y + radius * Math.sin(latitudeRadians),
+    GLOBE_CENTER.z + radius * latitudeCosine * Math.cos(longitudeRadians),
+  );
+}
+
+export function globePositionAtDistance(
+  miles: number,
+  bearingDegrees: number,
+  altitude = 0,
+): THREE.Vector3 {
+  const angularDistance = miles / EARTH_RADIUS_MILES;
+  const bearing = THREE.MathUtils.degToRad(bearingDegrees);
+  const startLatitude = THREE.MathUtils.degToRad(ORIGIN.latitude);
+  const startLongitude = THREE.MathUtils.degToRad(ORIGIN.longitude);
+  const endLatitude = Math.asin(
+    Math.sin(startLatitude) * Math.cos(angularDistance)
+      + Math.cos(startLatitude) * Math.sin(angularDistance) * Math.cos(bearing),
+  );
+  const endLongitude = startLongitude + Math.atan2(
+    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(startLatitude),
+    Math.cos(angularDistance) - Math.sin(startLatitude) * Math.sin(endLatitude),
+  );
+  return globePosition(
+    THREE.MathUtils.radToDeg(endLatitude),
+    THREE.MathUtils.radToDeg(endLongitude),
+    altitude,
   );
 }
 
@@ -87,6 +120,59 @@ function createLineGeometry(
   return geometry;
 }
 
+function createGlobeLineGeometry(coordinates: number[][][]): THREE.BufferGeometry {
+  const positions: number[] = [];
+  coordinates.forEach((line) => {
+    for (let index = 1; index < line.length; index += 1) {
+      const [startLongitude, startLatitude] = line[index - 1] ?? [];
+      const [endLongitude, endLatitude] = line[index] ?? [];
+      if (
+        startLongitude === undefined
+        || startLatitude === undefined
+        || endLongitude === undefined
+        || endLatitude === undefined
+      ) continue;
+      const start = globePosition(startLatitude, startLongitude, 0.035);
+      const end = globePosition(endLatitude, endLongitude, 0.035);
+      const startNormal = start.clone().sub(GLOBE_CENTER).normalize();
+      const endNormal = end.clone().sub(GLOBE_CENTER).normalize();
+      if (startNormal.angleTo(endNormal) > THREE.MathUtils.degToRad(24)) continue;
+      positions.push(start.x, start.y, start.z, end.x, end.y, end.z);
+    }
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function createGraticuleGeometry(): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const addSegment = (start: THREE.Vector3, end: THREE.Vector3) => {
+    positions.push(start.x, start.y, start.z, end.x, end.y, end.z);
+  };
+  for (let latitude = -60; latitude <= 60; latitude += 30) {
+    for (let longitude = -180; longitude < 180; longitude += 4) {
+      addSegment(
+        globePosition(latitude, longitude, 0.012),
+        globePosition(latitude, longitude + 4, 0.012),
+      );
+    }
+  }
+  for (let longitude = -150; longitude <= 180; longitude += 30) {
+    for (let latitude = -88; latitude < 88; latitude += 4) {
+      addSegment(
+        globePosition(latitude, longitude, 0.012),
+        globePosition(Math.min(88, latitude + 4), longitude, 0.012),
+      );
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 function lineMaterial(color: number, baseOpacity: number): THREE.LineBasicMaterial {
   const material = new THREE.LineBasicMaterial({
     color,
@@ -99,7 +185,7 @@ function lineMaterial(color: number, baseOpacity: number): THREE.LineBasicMateri
   return material;
 }
 
-function createLabelMaterial(label: string, origin: boolean): THREE.SpriteMaterial {
+function createLabelMaterial(label: string, origin: boolean, depthTest = false): THREE.SpriteMaterial {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 64;
@@ -125,11 +211,40 @@ function createLabelMaterial(label: string, origin: boolean): THREE.SpriteMateri
     map: texture,
     transparent: true,
     opacity: 0,
-    depthTest: false,
+    depthTest,
     depthWrite: false,
   });
   material.userData.baseOpacity = origin ? 0.96 : 0.72;
   return material;
+}
+
+function addGlobeCities(layer: GeoMapLayer, cities: City[]): void {
+  cities.forEach((city) => {
+    const surface = globePosition(city.latitude, city.longitude, city.origin ? 0.12 : 0.075);
+    const normal = surface.clone().sub(GLOBE_CENTER).normalize();
+    const dotMaterial = new THREE.MeshBasicMaterial({
+      color: city.origin ? 0x42e8df : 0x7aa7ac,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    dotMaterial.userData.baseOpacity = city.origin ? 1 : 0.74;
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(city.origin ? 0.105 : 0.055, 18, 12),
+      dotMaterial,
+    );
+    dot.position.copy(surface);
+    layer.group.add(dot);
+    layer.materials.push(dotMaterial);
+
+    const labelMaterial = createLabelMaterial(city.label, city.origin === true, true);
+    const label = new THREE.Sprite(labelMaterial);
+    label.position.copy(surface).addScaledVector(normal, city.origin ? 0.38 : 0.23);
+    label.scale.set(city.origin ? 1.65 : 1.18, city.origin ? 0.41 : 0.3, 1);
+    layer.group.add(label);
+    layer.materials.push(labelMaterial);
+  });
 }
 
 function addCities(
@@ -183,7 +298,7 @@ function blankLayer(name: string): GeoMapLayer {
 
 export function createGeoMapLayers(): { us: GeoMapLayer; world: GeoMapLayer } {
   const us = blankLayer('Continental US map');
-  const world = blankLayer('World map');
+  const world = blankLayer('3D world globe');
   const usTopology = usAtlasJson as unknown as Topology;
   const worldTopology = worldAtlasJson as unknown as Topology;
 
@@ -203,16 +318,53 @@ export function createGeoMapLayers(): { us: GeoMapLayer; world: GeoMapLayer } {
     (left, right) => left !== right,
   );
   const land = mesh(worldTopology, worldTopology.objects.land as GeometryObject);
-  addLine(world, createLineGeometry(countries.coordinates, projectWorld, 5), 0x477c86, 0.27);
-  addLine(world, createLineGeometry(land.coordinates, projectWorld, 5), 0x7fd8d4, 0.7);
-  addCities(world, WORLD_CITIES, projectWorld);
+
+  const oceanMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x010a0f,
+    emissive: 0x03151c,
+    emissiveIntensity: 0.3,
+    transparent: true,
+    opacity: 0,
+    roughness: 0.96,
+    metalness: 0,
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.92,
+    depthWrite: true,
+  });
+  oceanMaterial.userData.baseOpacity = 0.96;
+  const ocean = new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 96, 64), oceanMaterial);
+  ocean.position.copy(GLOBE_CENTER);
+  world.group.add(ocean);
+  world.materials.push(oceanMaterial);
+
+  const atmosphereMaterial = new THREE.MeshBasicMaterial({
+    color: 0x42e8df,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide,
+  });
+  atmosphereMaterial.userData.baseOpacity = 0.11;
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(GLOBE_RADIUS + 0.22, 64, 48),
+    atmosphereMaterial,
+  );
+  atmosphere.position.copy(GLOBE_CENTER);
+  world.group.add(atmosphere);
+  world.materials.push(atmosphereMaterial);
+
+  addLine(world, createGraticuleGeometry(), 0x24515c, 0.16);
+  addLine(world, createGlobeLineGeometry(countries.coordinates), 0x4f8a93, 0.4);
+  addLine(world, createGlobeLineGeometry(land.coordinates), 0x92e1de, 0.82);
+  addGlobeCities(world, WORLD_CITIES);
 
   return { us, world };
 }
 
 export function mapRadiusForMiles(miles: number, mode: GeoMapMode): number {
   if (mode === 'us') return miles * (US_SCALE / 69);
-  if (mode === 'world') return miles * (WORLD_SCALE / 69);
+  if (mode === 'world') return GLOBE_RADIUS * (miles / EARTH_RADIUS_MILES);
   return 0;
 }
 
