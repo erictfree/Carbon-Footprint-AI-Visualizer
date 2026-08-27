@@ -1281,6 +1281,7 @@ input[type="range"] {
   justify-content: center;
   height: 8.7%;
   overflow: hidden;
+  padding: clamp(2px, 0.35vw, 6px) clamp(3px, 0.45vw, 8px);
   color: #dffffc;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
@@ -1302,19 +1303,15 @@ input[type="range"] {
   color: #ffbd73;
 }
 
-.belt-readout strong:first-child {
-  font-size: clamp(8px, 1.18vw, 18px);
-  font-weight: 780;
-  letter-spacing: -0.06em;
-  white-space: nowrap;
-}
-
-.belt-readout strong:last-child {
-  margin-top: 5%;
-  color: rgba(225, 240, 237, 0.7);
-  font-size: clamp(5px, 0.55vw, 9px);
-  font-weight: 650;
-  letter-spacing: -0.04em;
+.belt-readout strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(6px, 1.7vw, 25px);
+  font-weight: 820;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  text-overflow: clip;
   white-space: nowrap;
 }
 

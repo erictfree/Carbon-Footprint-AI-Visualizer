@@ -102,11 +102,9 @@ app.innerHTML = `
         <div class="factory-stage__shade"></div>
         <div class="belt-readout belt-readout--left">
           <strong id="left-belt-carbon">—</strong>
-          <strong id="left-pace">—</strong>
         </div>
         <div class="belt-readout belt-readout--right">
           <strong id="right-belt-carbon">—</strong>
-          <strong id="right-pace">—</strong>
         </div>
         <div class="flow-layer" id="flow-layer" aria-hidden="true"></div>
       </figure>
@@ -286,17 +284,6 @@ function formatBurgerOutput(burgers: number): string {
   if (burgers < 100) return `${burgers.toFixed(burgers < 10 ? 1 : 0)} burgers`;
   if (burgers < 1_000_000) return `${Math.round(burgers).toLocaleString('en-US')} burgers`;
   return `${(burgers / 1_000_000).toFixed(1)}M burgers`;
-}
-
-function productionPace(burgers: number, days: number): string {
-  if (burgers <= 0) return 'Line idle';
-  if (burgers < 0.005) return 'Below visual threshold';
-  const perDay = burgers / Math.max(1, days);
-  if (perDay < 0.05) return `1 burger / ${Math.round(1 / perDay)}d`;
-  if (perDay < 1) return `${perDay.toFixed(2)} / day`;
-  if (perDay < 100) return `${perDay.toFixed(1)} / day`;
-  if (perDay < 100_000) return `${Math.round(perDay).toLocaleString('en-US')} / day`;
-  return `${(perDay / 1_000_000).toFixed(1)}M / day`;
 }
 
 const shell = byId('works-shell');
@@ -490,7 +477,6 @@ function applyLoad(side: 'left' | 'right', data: SideData, days: number): void {
   const burgers = data.kgCo2e / BURGER_KG_CO2E;
   byId(`${side}-unit-count`).textContent = formatBurgerOutput(burgers);
   byId(`${side}-unit-name`).textContent = `in ${days} days at 1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e`;
-  byId(`${side}-pace`).textContent = productionPace(burgers, days);
 }
 
 function renderComparison(state: AppState): void {
