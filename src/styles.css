@@ -1197,6 +1197,270 @@ input[type="range"] {
   }
 }
 
+/* Linear conveyor direction — the supplied factory image owns the scene;
+   interface layers only label the two measurable production lines. */
+.factory-stage {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2128 / 912;
+  overflow: hidden;
+  border-color: rgba(255, 203, 65, 0.25);
+  border-radius: 18px;
+  background: #120d08;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.42);
+}
+
+.factory-stage__art {
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.9) contrast(1.05) brightness(0.78);
+}
+
+.factory-stage__shade {
+  background: rgba(4, 8, 10, 0.08);
+}
+
+.factory-label {
+  top: 22px;
+  min-width: 250px;
+  padding: 12px 15px;
+  border-color: rgba(255, 203, 65, 0.28);
+  border-radius: 12px;
+  background: rgba(5, 12, 16, 0.88);
+}
+
+.factory-label--left {
+  left: 5.5%;
+  border-color: rgba(54, 231, 223, 0.48);
+}
+
+.factory-label--right {
+  right: 5.5%;
+  border-color: rgba(255, 172, 84, 0.54);
+}
+
+.factory-label span {
+  color: #a2b2b5;
+  font-size: 9px;
+}
+
+.factory-label strong {
+  margin-top: 5px;
+  font-size: 14px;
+}
+
+.stage-status {
+  top: 25px;
+  width: max-content;
+  max-width: 32%;
+  padding: 9px 14px;
+  color: #f4e9d7;
+  border-color: rgba(255, 203, 65, 0.36);
+  background: rgba(5, 12, 16, 0.9);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.flow-layer {
+  z-index: 7;
+  overflow: hidden;
+}
+
+.stream-item {
+  z-index: 8;
+  width: clamp(88px, 8vw, 132px);
+  transform-origin: center center;
+  will-change: left, top, transform, opacity;
+}
+
+.stream-item[data-entity="ai"] {
+  filter: drop-shadow(0 8px 9px rgba(0, 0, 0, 0.62)) drop-shadow(0 0 8px rgba(54, 231, 223, 0.34));
+}
+
+.stream-item[data-entity="life"] {
+  filter: drop-shadow(0 8px 9px rgba(0, 0, 0, 0.62)) drop-shadow(0 0 8px rgba(255, 172, 84, 0.34));
+}
+
+.unit-chip {
+  bottom: 22px;
+  width: clamp(220px, 21vw, 330px);
+  min-width: 0;
+  padding: 13px 16px;
+  border-radius: 12px;
+  background: rgba(5, 12, 16, 0.9);
+}
+
+.unit-chip--left {
+  left: 5.5%;
+}
+
+.unit-chip--right {
+  right: 5.5%;
+}
+
+.unit-chip span,
+.unit-chip strong,
+.unit-chip small {
+  display: block;
+}
+
+.unit-chip strong {
+  margin-top: 3px;
+  color: #f2f5ee;
+  font-size: 20px;
+  letter-spacing: -0.035em;
+}
+
+.unit-chip small {
+  margin-top: 2px;
+  color: #8fa0a5;
+  font-size: 8px;
+}
+
+.factory-stage figcaption {
+  bottom: 24px;
+  width: min(520px, 38%);
+  padding: 10px 14px;
+  color: #9fb0b4;
+  border-color: rgba(255, 203, 65, 0.2);
+  background: rgba(5, 12, 16, 0.88);
+}
+
+.factory-stage.is-playing .factory-stage__art {
+  animation: none;
+}
+
+.output-strip {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(320px, 1.35fr) minmax(190px, 0.8fr);
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.output-card,
+.output-story {
+  padding: 13px 16px;
+  border: 1px solid rgba(175, 223, 223, 0.15);
+  border-radius: 12px;
+  background: rgba(5, 12, 16, 0.9);
+}
+
+.output-card--left {
+  border-color: rgba(54, 231, 223, 0.34);
+}
+
+.output-card--right {
+  border-color: rgba(255, 172, 84, 0.38);
+  text-align: right;
+}
+
+.output-card span,
+.output-card strong,
+.output-card small {
+  display: block;
+}
+
+.output-card span {
+  color: #7f9298;
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.output-card strong {
+  margin-top: 3px;
+  color: #f1f6f3;
+  font-size: 18px;
+  letter-spacing: -0.035em;
+}
+
+.output-card small {
+  margin-top: 2px;
+  color: #7f9298;
+  font-size: 8px;
+}
+
+.output-story {
+  display: grid;
+  align-content: center;
+  text-align: center;
+}
+
+.output-story .stage-status {
+  position: static;
+  width: auto;
+  max-width: none;
+  padding: 0;
+  color: #f2dfbd;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  backdrop-filter: none;
+}
+
+.output-story p {
+  margin: 5px 0 0;
+  color: #91a2a6;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.replay-strip {
+  min-height: 68px;
+}
+
+@media (max-width: 760px) {
+  .factory-stage {
+    height: auto;
+    aspect-ratio: 2128 / 912;
+    border-radius: 12px;
+  }
+
+  .factory-label {
+    top: 7px;
+    max-width: 42%;
+    min-width: 0;
+    padding: 6px 8px;
+  }
+
+  .factory-label--left { left: 7px; }
+  .factory-label--right { right: 7px; }
+
+  .factory-label span { font-size: 6px; }
+  .factory-label strong { margin-top: 2px; font-size: 8px; }
+  .stage-status,
+  .unit-chip,
+  .factory-stage figcaption { display: none; }
+  .stream-item { width: 62px; }
+
+  .output-strip {
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .output-story {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .output-story .stage-status {
+    display: block;
+  }
+
+  .output-card {
+    padding: 9px 10px;
+  }
+
+  .output-card strong {
+    font-size: 13px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

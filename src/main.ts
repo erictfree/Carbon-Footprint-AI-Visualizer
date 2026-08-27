@@ -93,49 +93,33 @@ app.innerHTML = `
         </article>
       </div>
 
-      <figure class="factory-stage" id="factory-stage" aria-label="Two burger factories replaying carbon impact side by side">
-        <img class="factory-stage__art" src="${ASSET_BASE}/factory-stage.png" alt="Miniature cyan and amber burger factories connected to a central balance scale" />
+      <figure class="factory-stage" id="factory-stage" aria-label="Two straight burger conveyor belts comparing carbon production rates">
+        <img class="factory-stage__art" src="${ASSET_BASE}/linear-conveyor.jpg" alt="Twin industrial conveyor belts running in parallel toward the viewer" />
         <div class="factory-stage__shade"></div>
         <div class="factory-label factory-label--left">
-          <span id="left-factory-name">AI factory</span>
+          <span id="left-factory-name">AI line</span>
           <strong id="left-pace">—</strong>
         </div>
         <div class="factory-label factory-label--right">
-          <span id="right-factory-name">Lifestyle factory</span>
+          <span id="right-factory-name">Lifestyle line</span>
           <strong id="right-pace">—</strong>
         </div>
         <div class="flow-layer" id="flow-layer" aria-hidden="true"></div>
-        <div class="load-frame load-frame--left" id="left-load-frame" aria-hidden="true">
-          <img id="left-load" src="${ASSET_BASE}/burger.png" alt="" />
-        </div>
-        <div class="load-frame load-frame--right" id="right-load-frame" aria-hidden="true">
-          <img id="right-load" src="${ASSET_BASE}/burger.png" alt="" />
-        </div>
-        <div class="unit-chip unit-chip--left"><strong id="left-unit-count">—</strong><span id="left-unit-name">burger equivalent</span></div>
-        <div class="unit-chip unit-chip--right"><strong id="right-unit-count">—</strong><span id="right-unit-name">burger equivalent</span></div>
-        <div class="stage-status" id="stage-status" aria-live="polite">Total balance · rate loop ready</div>
-        <figcaption>
-          Moving burgers track their ramps; <strong>speed and spacing rise with relative CO₂ rate</strong>. The center scale separately holds the packed totals; one burger represents about 3 kg CO₂e.
-        </figcaption>
       </figure>
+
+      <section class="output-strip" aria-label="Production totals and visual explanation">
+        <article class="output-card output-card--left"><span>Window output</span><strong id="left-unit-count">—</strong><small id="left-unit-name">burger equivalent</small></article>
+        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p>Same burger, same belt, same window. Faster movement and tighter spacing mean a higher CO₂ rate.</p></div>
+        <article class="output-card output-card--right"><span>Window output</span><strong id="right-unit-count">—</strong><small id="right-unit-name">burger equivalent</small></article>
+      </section>
 
       <section class="replay-strip" aria-label="Factory replay controls">
         <div class="replay-copy">
           <span class="live-dot"></span>
-          <div><strong id="replay-window">30-day rate · continuous loop</strong><span id="source-status">Synthetic demonstration</span></div>
+          <div><strong id="replay-window">30-day production · continuous loop</strong><span id="source-status">Synthetic demonstration</span></div>
         </div>
         <div class="timeline" aria-hidden="true"><span id="timeline-fill"></span></div>
-        <button class="replay-button" id="replay-button" type="button">Restart rate loop</button>
-      </section>
-
-      <section class="packing-legend" aria-label="Burger packing scale">
-        <div class="packing-legend__intro"><span>How scale changes</span><strong>Same object, smarter packing</strong></div>
-        <div class="packing-step"><img class="packing-step__partial" src="${ASSET_BASE}/burger.png" alt="" /><span><strong>&lt;1</strong> tiny burger</span></div>
-        <div class="packing-step"><img src="${ASSET_BASE}/burger.png" alt="" /><span><strong>1</strong> burger</span></div>
-        <div class="packing-step"><img src="${ASSET_BASE}/tray.png" alt="" /><span><strong>10</strong> tray</span></div>
-        <div class="packing-step"><img src="${ASSET_BASE}/crate.png" alt="" /><span><strong>100</strong> crate</span></div>
-        <div class="packing-step"><img src="${ASSET_BASE}/pallet.png" alt="" /><span><strong>1K</strong> pallet</span></div>
-        <div class="packing-step"><img src="${ASSET_BASE}/truck.png" alt="" /><span><strong>10K</strong> truck</span></div>
+        <button class="replay-button" id="replay-button" type="button">Restart lines</button>
       </section>
     </section>
   </main>
@@ -197,7 +181,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>Animation speed is capped. Larger values pack into trays, crates, pallets, and trucks while exact numbers remain visible.</dd></div>
+      <div><dt>Visual scale</dt><dd>Animation speed and spacing are log-compressed and capped so both lines remain readable; exact window totals remain visible below the belts.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
@@ -253,36 +237,11 @@ function formatRatio(value: number): string {
   return `${value.toFixed(2)}×`;
 }
 
-interface PackingTier {
-  asset: string;
-  label: string;
-  plural: string;
-  scale: number;
-  fractional: boolean;
-}
-
-const PACKING_TIERS: PackingTier[] = [
-  { asset: 'burger.png', label: 'burger', plural: 'burgers', scale: 1, fractional: false },
-  { asset: 'tray.png', label: 'tray', plural: 'trays', scale: 10, fractional: false },
-  { asset: 'crate.png', label: 'crate', plural: 'crates', scale: 100, fractional: false },
-  { asset: 'pallet.png', label: 'pallet', plural: 'pallets', scale: 1_000, fractional: false },
-  { asset: 'truck.png', label: 'truck', plural: 'trucks', scale: 10_000, fractional: false },
-];
-
-function tierFor(burgers: number): PackingTier {
-  if (burgers < 1) return { ...PACKING_TIERS[0]!, fractional: true, label: 'partial burger', plural: 'partial burgers' };
-  if (burgers < 10) return PACKING_TIERS[0]!;
-  if (burgers < 100) return PACKING_TIERS[1]!;
-  if (burgers < 1_000) return PACKING_TIERS[2]!;
-  if (burgers < 10_000) return PACKING_TIERS[3]!;
-  return PACKING_TIERS[4]!;
-}
-
-function formatPackedUnits(burgers: number, tier: PackingTier): string {
-  if (tier.fractional) return `${burgers.toFixed(2)} burger`;
-  const units = burgers / tier.scale;
-  const formatted = units >= 100 ? Math.round(units).toLocaleString('en-US') : units.toFixed(units < 10 ? 1 : 0);
-  return `${formatted} ${Math.abs(units - 1) < 0.001 ? tier.label : tier.plural}`;
+function formatBurgerOutput(burgers: number): string {
+  if (burgers < 1) return `${burgers.toFixed(2)} burger`;
+  if (burgers < 100) return `${burgers.toFixed(burgers < 10 ? 1 : 0)} burgers`;
+  if (burgers < 1_000_000) return `${Math.round(burgers).toLocaleString('en-US')} burgers`;
+  return `${(burgers / 1_000_000).toFixed(1)}M burgers`;
 }
 
 function productionPace(burgers: number, days: number): string {
@@ -338,6 +297,7 @@ function updateProfile(patch: Partial<LifestyleProfile>): void {
     const profile = { ...state.profile, ...patch };
     return { profile, result: state.aggregate ? calculateComparison(state.aggregate, profile) : null };
   });
+  window.setTimeout(() => startReplay(), 0);
 }
 
 function updateFlight(length: FlightLengthId, count: number): void {
@@ -411,14 +371,14 @@ function currentSides(state: AppState): { left: SideData; right: SideData } | nu
   if (!impact || !state.result) return null;
   const ai: SideData = {
     label: 'AI usage',
-    factoryName: 'AI factory',
+    factoryName: 'AI line',
     kgCo2e: state.result.aiCarbonKgCo2e.central,
     range: `${formatCarbon(state.result.aiCarbonKgCo2e.low)}–${formatCarbon(state.result.aiCarbonKgCo2e.high)}`,
     className: 'ai',
   };
   const life: SideData = {
     label: impact.label,
-    factoryName: `${impact.label} factory`,
+    factoryName: `${impact.label} line`,
     kgCo2e: impact.kgCo2e,
     range: 'Lifestyle factor estimate',
     className: 'life',
@@ -428,16 +388,8 @@ function currentSides(state: AppState): { left: SideData; right: SideData } | nu
 
 function applyLoad(side: 'left' | 'right', data: SideData, days: number): void {
   const burgers = data.kgCo2e / BURGER_KG_CO2E;
-  const tier = tierFor(burgers);
-  const frame = byId(`${side}-load-frame`);
-  const image = byId<HTMLImageElement>(`${side}-load`);
-  frame.classList.toggle('is-fractional', tier.fractional);
-  frame.classList.toggle('is-truck', tier.label === 'truck');
-  frame.style.setProperty('--fraction-scale', String(clamp(Math.sqrt(Math.max(0, burgers)), 0.18, 0.82)));
-  frame.dataset.entity = data.className;
-  image.src = `${ASSET_BASE}/${tier.asset}`;
-  byId(`${side}-unit-count`).textContent = formatPackedUnits(burgers, tier);
-  byId(`${side}-unit-name`).textContent = tier.fractional ? 'a visible fraction' : `packed as ${tier.plural}`;
+  byId(`${side}-unit-count`).textContent = formatBurgerOutput(burgers);
+  byId(`${side}-unit-name`).textContent = `in ${days} days at 1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e`;
   byId(`${side}-pace`).textContent = productionPace(burgers, days);
 }
 
@@ -463,18 +415,13 @@ function renderComparison(state: AppState): void {
   const larger = sides.left.kgCo2e >= sides.right.kgCo2e ? sides.left.label : sides.right.label;
   byId('ratio-value').textContent = formatRatio(ratio);
   byId('ratio-description').textContent = `${larger} is larger in this window`;
-  byId('stage-status').textContent = `Total balance · ${larger} ${formatRatio(ratio)} heavier`;
+  byId('stage-status').textContent = `Live throughput · totals differ by ${formatRatio(ratio)}`;
   byId('window-label').textContent = `${state.result.comparisonDays}-day carbon comparison`;
-  byId('replay-window').textContent = `${state.result.comparisonDays}-day rate · continuous loop`;
+  byId('replay-window').textContent = `${state.result.comparisonDays}-day production · continuous loop`;
   byId('source-status').textContent = state.aggregate.synthetic ? 'Synthetic demonstration' : `${state.aggregate.sourceName} · local only`;
 
   applyLoad('left', sides.left, state.result.comparisonDays);
   applyLoad('right', sides.right, state.result.comparisonDays);
-  const tilt = clamp(Math.log10(Math.max(1, ratio)) * 7, 0, 24);
-  const leftHeavy = sides.left.kgCo2e > sides.right.kgCo2e;
-  stage.style.setProperty('--left-drop', `${leftHeavy ? tilt : -tilt}px`);
-  stage.style.setProperty('--right-drop', `${leftHeavy ? -tilt : tilt}px`);
-
   byId('impact-total').textContent = formatCarbon(state.result.lifestyle.total.kgCo2e);
   for (const [id, component] of Object.entries(state.result.lifestyle.components)) {
     byId(`impact-${id}`).textContent = formatCarbon(component.kgCo2e);
@@ -493,11 +440,11 @@ function clearReplay(): void {
   replayAnimations = [];
   flowLayer.replaceChildren();
   stage.classList.remove('is-playing', 'is-packing');
-  replayButton.textContent = 'Restart rate loop';
+  replayButton.textContent = 'Restart lines';
   timelineFill.style.transform = 'scaleX(0)';
 }
 
-function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: number, duration: number): void {
+function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: number, duration: number): Animation {
   const item = document.createElement('img');
   item.className = `stream-item stream-item--${side}`;
   item.dataset.entity = accent;
@@ -506,32 +453,16 @@ function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: nu
   flowLayer.append(item);
   const path = side === 'left'
     ? [
-        { left: '14.6%', top: '54%', opacity: 1, transform: `translate(-50%, -50%) scale(${0.3 * sizeScale})` },
-        { left: '16.1%', top: '58.5%', opacity: 1, offset: 0.1, transform: `translate(-50%, -50%) scale(${0.36 * sizeScale})` },
-        { left: '17.8%', top: '63%', opacity: 1, offset: 0.2, transform: `translate(-50%, -50%) scale(${0.41 * sizeScale})` },
-        { left: '19.4%', top: '67.2%', opacity: 1, offset: 0.3, transform: `translate(-50%, -50%) scale(${0.46 * sizeScale})` },
-        { left: '20.8%', top: '71.2%', opacity: 1, offset: 0.4, transform: `translate(-50%, -50%) scale(${0.5 * sizeScale})` },
-        { left: '22%', top: '74%', opacity: 1, offset: 0.48, transform: `translate(-50%, -50%) scale(${0.52 * sizeScale})` },
-        { left: '20.6%', top: '78%', opacity: 1, offset: 0.56, transform: `translate(-50%, -50%) scale(${0.54 * sizeScale})` },
-        { left: '17.2%', top: '83%', opacity: 1, offset: 0.67, transform: `translate(-50%, -50%) scale(${0.56 * sizeScale})` },
-        { left: '13.5%', top: '87.5%', opacity: 1, offset: 0.77, transform: `translate(-50%, -50%) scale(${0.57 * sizeScale})` },
-        { left: '8.5%', top: '94.5%', opacity: 1, offset: 0.87, transform: `translate(-50%, -50%) scale(${0.58 * sizeScale})` },
-        { left: '-1%', top: '102%', opacity: 1, offset: 0.95, transform: `translate(-50%, -50%) scale(${0.58 * sizeScale})` },
-        { left: '-10%', top: '110%', opacity: 0, transform: `translate(-50%, -50%) scale(${0.58 * sizeScale})` },
+        { left: '43.3%', top: '-4%', opacity: 0, transform: `translate(-50%, -50%) scale(${0.08 * sizeScale})` },
+        { left: '42.4%', top: '4%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.12 * sizeScale})` },
+        { left: '24.7%', top: '106%', opacity: 1, offset: 0.94, transform: `translate(-50%, -50%) scale(${1.38 * sizeScale})` },
+        { left: '23.5%', top: '116%', opacity: 0, transform: `translate(-50%, -50%) scale(${1.55 * sizeScale})` },
       ]
     : [
-        { left: '92.1%', top: '51.5%', opacity: 1, transform: `translate(-50%, -50%) scale(${0.3 * sizeScale})` },
-        { left: '90.2%', top: '56.5%', opacity: 1, offset: 0.1, transform: `translate(-50%, -50%) scale(${0.36 * sizeScale})` },
-        { left: '88.4%', top: '61.2%', opacity: 1, offset: 0.2, transform: `translate(-50%, -50%) scale(${0.41 * sizeScale})` },
-        { left: '86.8%', top: '65.5%', opacity: 1, offset: 0.29, transform: `translate(-50%, -50%) scale(${0.45 * sizeScale})` },
-        { left: '85.3%', top: '68.5%', opacity: 1, offset: 0.38, transform: `translate(-50%, -50%) scale(${0.49 * sizeScale})` },
-        { left: '84.5%', top: '72.5%', opacity: 1, offset: 0.47, transform: `translate(-50%, -50%) scale(${0.52 * sizeScale})` },
-        { left: '85.2%', top: '77%', opacity: 1, offset: 0.58, transform: `translate(-50%, -50%) scale(${0.54 * sizeScale})` },
-        { left: '87.3%', top: '81.5%', opacity: 1, offset: 0.68, transform: `translate(-50%, -50%) scale(${0.56 * sizeScale})` },
-        { left: '89.2%', top: '86%', opacity: 1, offset: 0.77, transform: `translate(-50%, -50%) scale(${0.57 * sizeScale})` },
-        { left: '90.7%', top: '92%', opacity: 1, offset: 0.86, transform: `translate(-50%, -50%) scale(${0.58 * sizeScale})` },
-        { left: '95%', top: '96.5%', opacity: 1, offset: 0.95, transform: `translate(-50%, -50%) scale(${0.58 * sizeScale})` },
-        { left: '102%', top: '99.5%', opacity: 0, transform: `translate(-50%, -50%) scale(${0.58 * sizeScale})` },
+        { left: '56.7%', top: '-4%', opacity: 0, transform: `translate(-50%, -50%) scale(${0.08 * sizeScale})` },
+        { left: '57.6%', top: '4%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.12 * sizeScale})` },
+        { left: '75.3%', top: '106%', opacity: 1, offset: 0.94, transform: `translate(-50%, -50%) scale(${1.38 * sizeScale})` },
+        { left: '76.5%', top: '116%', opacity: 0, transform: `translate(-50%, -50%) scale(${1.55 * sizeScale})` },
       ];
   const animation = item.animate(path, { duration, easing: 'linear', fill: 'forwards' });
   replayAnimations.push(animation);
@@ -539,6 +470,7 @@ function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: nu
     item.remove();
     replayAnimations = replayAnimations.filter((candidate) => candidate !== animation);
   });
+  return animation;
 }
 
 function visualRate(kgCo2e: number): number {
@@ -559,7 +491,7 @@ function startReplay(): void {
   clearReplay();
   stage.classList.add('is-playing');
   replayButton.disabled = false;
-  replayButton.textContent = 'Restart rate loop';
+  replayButton.textContent = 'Restart lines';
   timelineFill.style.transform = 'scaleX(0)';
   replayAnimations.push(timelineFill.animate(
     [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
@@ -570,9 +502,14 @@ function startReplay(): void {
     const rate = visualRate(data.kgCo2e);
     if (rate <= 0) return;
     const duration = rollingDuration(data.kgCo2e);
-    const sizeScale = rate > 0.45 ? 0.82 : 1;
-    launchItem(side, data.className, sizeScale, duration);
-    const timer = window.setInterval(() => launchItem(side, data.className, sizeScale, duration), Math.round(1_000 / rate));
+    const sizeScale = 1;
+    const interval = Math.round(1_000 / rate);
+    const visibleItems = clamp(Math.floor(duration / interval), 1, 10);
+    for (let index = 0; index < visibleItems; index += 1) {
+      const animation = launchItem(side, data.className, sizeScale, duration);
+      animation.currentTime = (index / visibleItems) * duration * 0.92;
+    }
+    const timer = window.setInterval(() => launchItem(side, data.className, sizeScale, duration), interval);
     replayTimers.push(timer);
   };
   schedule('left', sides.left);

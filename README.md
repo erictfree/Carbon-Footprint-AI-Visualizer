@@ -1,6 +1,6 @@
 # Burger Works
 
-Burger Works compares estimated AI carbon with lifestyle carbon through a miniature burger factory. The ramps show relative CO₂ flow continuously; the central balance holds the packed totals for the selected comparison window.
+Burger Works compares estimated AI carbon with lifestyle carbon through two straight burger-production lines. Burger speed and spacing show relative CO₂ flow continuously; exact window totals remain visible below the belts.
 
 ## Run locally
 
@@ -17,8 +17,8 @@ Open `http://127.0.0.1:5174/`.
 - Local CSV import with automatic or manual column mapping
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over matched time windows
-- Slow continuous ramp animation with upright burgers anchored to each conveyor centerline; spacing and travel speed rise with the relative CO₂ rate
-- Packed total units: tiny burger, burger, tray, crate, pallet, and truck
+- Straight, perspective-matched twin conveyors with identical burgers; spacing and travel speed rise with the relative CO₂ rate
+- Immediate steady-state line density plus exact burger-equivalent output for the selected window
 - Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
 - Responsive desktop and mobile layouts
 
