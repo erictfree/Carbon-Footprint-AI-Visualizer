@@ -22,7 +22,8 @@ const WINDOW_PLAYBACK_DURATION_MS = 60_000;
 const MIN_TRAVEL_DURATION_MS = 450;
 const HEADWAY_MARGIN = 0.2;
 const DEFAULT_SPRITE_WIDTH_PCT = 8.5;
-const COLUMN_GAP_PCT = 1;
+const FAR_COLUMN_GAP_PCT = 0.5;
+const NEAR_COLUMN_GAP_PCT = 1;
 const SPRITE_SCALE_EASING = 1.2;
 
 function clamp01(value: number): number {
@@ -74,9 +75,15 @@ export function projectBeltPose(
     : beltDepth;
   const scale = mix(FAR_SCALE, NEAR_SCALE, scaleDepth);
   // Each column advances from the vanishing point along its own belt ray.
-  // Spacing follows the rendered sprite width plus a fixed visual air gap, so
-  // adjacent burgers neither converge nor drift apart as they grow.
-  const columnSpread = Math.max(0, spriteWidthPct) * scale + COLUMN_GAP_PCT;
+  // Spacing follows the rendered sprite width plus a rail-safe air gap. The
+  // gap opens with the photographed belt, keeping the distant three-wide row
+  // inside the converging rails without allowing foreground convergence.
+  const columnGapPct = mix(
+    FAR_COLUMN_GAP_PCT,
+    NEAR_COLUMN_GAP_PCT,
+    clamp01(beltDepth),
+  );
+  const columnSpread = Math.max(0, spriteWidthPct) * scale + columnGapPct;
   const leftPct = centerLeftPct + columnOffset * columnSpread;
   const depth = beltDepth;
 
