@@ -270,6 +270,40 @@ function formatBeltCarbon(kgCo2e: number): string {
   return `${Math.round(kgCo2e * 1_000).toLocaleString('en-US')} g`;
 }
 
+function fitBeltCounter(element: HTMLElement, force = false): void {
+  const text = element.textContent ?? '—';
+  if (!force && element.dataset.fitLength === String(text.length)) return;
+  const container = element.parentElement;
+  if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return;
+  const containerStyle = getComputedStyle(container);
+  const availableWidth = container.clientWidth
+    - Number.parseFloat(containerStyle.paddingLeft)
+    - Number.parseFloat(containerStyle.paddingRight);
+  const availableHeight = container.clientHeight
+    - Number.parseFloat(containerStyle.paddingTop)
+    - Number.parseFloat(containerStyle.paddingBottom);
+
+  element.style.maxWidth = 'none';
+  element.style.overflow = 'visible';
+  element.style.fontSize = '100px';
+  const probe = element.getBoundingClientRect();
+  const fittedSize = Math.min(
+    34,
+    probe.width > 0 ? 100 * availableWidth / probe.width : 34,
+    probe.height > 0 ? 100 * availableHeight / probe.height : 34,
+  ) * 0.96;
+  element.style.maxWidth = '';
+  element.style.overflow = '';
+  element.style.fontSize = `${Math.max(5, fittedSize).toFixed(1)}px`;
+  element.dataset.fitLength = String(text.length);
+}
+
+function renderBeltCounter(id: 'left-belt-carbon' | 'right-belt-carbon', kgCo2e: number): void {
+  const element = byId(id);
+  element.textContent = formatBeltCarbon(kgCo2e);
+  fitBeltCounter(element);
+}
+
 function formatRatio(value: number): string {
   if (!Number.isFinite(value)) return '—';
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M×`;
@@ -492,8 +526,8 @@ function renderComparison(state: AppState): void {
   byId('right-label').textContent = sides.right.label;
   byId('right-value').textContent = formatCarbon(sides.right.kgCo2e);
   byId('right-range').textContent = sides.right.range ?? '';
-  byId('left-belt-carbon').textContent = formatBeltCarbon(sides.left.kgCo2e);
-  byId('right-belt-carbon').textContent = formatBeltCarbon(sides.right.kgCo2e);
+  renderBeltCounter('left-belt-carbon', sides.left.kgCo2e);
+  renderBeltCounter('right-belt-carbon', sides.right.kgCo2e);
 
   const low = Math.min(sides.left.kgCo2e, sides.right.kgCo2e);
   const high = Math.max(sides.left.kgCo2e, sides.right.kgCo2e);
@@ -633,8 +667,8 @@ function releaseSoundtrack(): void {
 
 function updateBeltCounters(progress: number): void {
   const elapsedShare = clamp(progress, 0, 1);
-  byId('left-belt-carbon').textContent = formatBeltCarbon(replayTotals.left * elapsedShare);
-  byId('right-belt-carbon').textContent = formatBeltCarbon(replayTotals.right * elapsedShare);
+  renderBeltCounter('left-belt-carbon', replayTotals.left * elapsedShare);
+  renderBeltCounter('right-belt-carbon', replayTotals.right * elapsedShare);
 }
 
 function createBurger(
@@ -908,6 +942,8 @@ byId('methodology-close').addEventListener('click', () => methodologyDialog.clos
 
 let observedLaneCapacity = laneCapacityForStage();
 new ResizeObserver(() => {
+  fitBeltCounter(byId('left-belt-carbon'), true);
+  fitBeltCounter(byId('right-belt-carbon'), true);
   const nextCapacity = laneCapacityForStage();
   if (nextCapacity === observedLaneCapacity) return;
   observedLaneCapacity = nextCapacity;

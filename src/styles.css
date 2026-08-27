@@ -1307,7 +1307,7 @@ input[type="range"] {
   display: block;
   max-width: 100%;
   overflow: hidden;
-  font-size: clamp(6px, 1.7vw, 25px);
+  font-size: clamp(6px, 1.7vw, 34px);
   font-weight: 820;
   letter-spacing: -0.07em;
   line-height: 1;
