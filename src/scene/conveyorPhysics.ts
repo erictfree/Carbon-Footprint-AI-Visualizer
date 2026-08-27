@@ -105,23 +105,18 @@ export function projectBeltPose(
     ? Math.pow(Math.max(0, beltDepth), SPRITE_SCALE_EASING)
     : beltDepth;
   const scale = mix(FAR_SCALE, NEAR_SCALE, scaleDepth);
-  // Each column advances from the vanishing point along its own belt ray.
-  // Spacing follows the rendered sprite width plus a rail-safe air gap. The
-  // gap opens with the photographed belt, keeping the distant three-wide row
-  // inside the converging rails without allowing foreground convergence.
-  const columnGapPct = mix(
-    FAR_COLUMN_GAP_PCT,
-    NEAR_COLUMN_GAP_PCT,
-    clamp01(beltDepth),
+  // Each column follows a straight photographed belt ray. Interpolating the
+  // two endpoint spreads with the same projective depth used by center X and
+  // contact Y keeps every column collinear; tying X to the eased sprite-size
+  // curve would make the outer burgers bow inward and then outward.
+  const safeSpriteWidthPct = Math.max(0, spriteWidthPct);
+  const farColumnSpread = (
+    safeSpriteWidthPct * FAR_SCALE + FAR_COLUMN_GAP_PCT
+  ) * Math.max(0, farColumnSpreadScale);
+  const nearColumnSpread = (
+    safeSpriteWidthPct * NEAR_SCALE + NEAR_COLUMN_GAP_PCT
   );
-  const packedSpreadScale = mix(
-    Math.max(0, farColumnSpreadScale),
-    1,
-    clamp01(beltDepth),
-  );
-  const columnSpread = (
-    Math.max(0, spriteWidthPct) * scale + columnGapPct
-  ) * packedSpreadScale;
+  const columnSpread = mix(farColumnSpread, nearColumnSpread, beltDepth);
   const leftPct = centerLeftPct + columnOffset * columnSpread;
   const depth = beltDepth;
 

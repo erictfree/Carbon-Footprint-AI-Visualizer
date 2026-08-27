@@ -407,9 +407,14 @@ function maxColumnsForStage(): number {
   return stage.clientWidth <= 760 ? 2 : 3;
 }
 
-function columnOffsetForIndex(index: number, columnCount: number): number {
+function columnOffsetForIndex(
+  index: number,
+  columnCount: number,
+  side: BeltSide,
+): number {
   if (columnCount <= 1) return 0;
   if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
+  if (side === 'right') return [-1, -0.04, 0.92][index % 3] ?? 0;
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
@@ -726,7 +731,7 @@ function renderConveyor(now: number, keepRunning = true): void {
           lane.accent,
           lane.nextSpawnAt,
           lane.travelDurationMs,
-          columnOffsetForIndex(column, rowBurgerCount),
+          columnOffsetForIndex(column, rowBurgerCount, lane.side),
           rowBurgerCount,
         );
       }

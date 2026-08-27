@@ -73,9 +73,10 @@ describe('conveyor physics', () => {
     expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(12.39, 5);
   });
 
-  it('opens the same-row edge gap as the photographed belt widens', () => {
+  it('keeps same-row sprites separated along straight belt rays', () => {
     const spriteWidthPct = 8.5;
-    const edgeGaps = [0, 0.2, 0.4, 0.6, 0.8].map((progress) => {
+    const progressSamples = [0, 0.2, 0.4, 0.6, 0.8];
+    const edgeGaps = progressSamples.map((progress) => {
       const inner = projectBeltPose(progress, 'right', 0, spriteWidthPct);
       const outer = projectBeltPose(progress, 'right', 1, spriteWidthPct);
       const centerGap = outer.leftPct - inner.leftPct;
@@ -84,9 +85,24 @@ describe('conveyor physics', () => {
 
     expect(edgeGaps[0]).toBeCloseTo(0.4, 5);
     expect(edgeGaps.at(-1)).toBeCloseTo(1, 5);
-    for (let index = 1; index < edgeGaps.length; index += 1) {
-      expect(edgeGaps[index]).toBeGreaterThan(edgeGaps[index - 1]!);
+    for (const edgeGap of edgeGaps) {
+      expect(edgeGap).toBeGreaterThan(0);
     }
+
+    const outerSamples = [0, 0.4, 0.8].map((progress) => (
+      projectBeltPose(progress, 'right', 1, spriteWidthPct)
+    ));
+    const rearSlope = (
+      outerSamples[1]!.leftPct - outerSamples[0]!.leftPct
+    ) / (
+      outerSamples[1]!.topPct - outerSamples[0]!.topPct
+    );
+    const frontSlope = (
+      outerSamples[2]!.leftPct - outerSamples[1]!.leftPct
+    ) / (
+      outerSamples[2]!.topPct - outerSamples[1]!.topPct
+    );
+    expect(frontSlope).toBeCloseTo(rearSlope, 5);
   });
 
   it('applies a rear rail-safe nudge only when a packed lane requests it', () => {
