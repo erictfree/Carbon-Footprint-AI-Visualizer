@@ -4,7 +4,14 @@ import {
   laneMotionTiming,
   projectBeltPose,
   projectWorldProgress,
+  ROUND_PLAYBACK_DURATION_MS,
 } from './conveyorPhysics';
+
+function scheduledCompletionMs(burgers: number, rowCapacity: number, maxColumns = 3): number {
+  const timing = laneMotionTiming(burgers, rowCapacity, maxColumns)!;
+  const rowCount = Math.ceil(Math.max(1, Math.ceil(burgers)) / timing.columnCount);
+  return (rowCount - 1) * timing.intervalMs * timing.columnCount + timing.travelDurationMs;
+}
 
 describe('conveyor physics', () => {
   it('projects the world-space endpoints exactly', () => {
@@ -123,19 +130,21 @@ describe('conveyor physics', () => {
     }
   });
 
-  it('fills density before increasing belt velocity for extreme rate gaps', () => {
+  it('fills density and fits extreme rate gaps to the soundtrack', () => {
     const ai = laneMotionTiming(1.24 / 3, 10, 3)!;
     const lifestyle = laneMotionTiming(887 / 3, 10, 3)!;
 
-    expect(ai.intervalMs / lifestyle.intervalMs).toBeGreaterThan(700);
+    expect(ai.intervalMs / lifestyle.intervalMs).toBeGreaterThan(300);
     expect(ai.columnCount).toBe(1);
     expect(ai.continuousMarker).toBe(true);
-    expect(ai.travelDurationMs).toBe(60_000);
+    expect(ai.travelDurationMs).toBe(ROUND_PLAYBACK_DURATION_MS);
     expect(lifestyle.columnCount).toBe(3);
     expect(lifestyle.totalCapacity).toBe(30);
-    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(5_900);
-    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(6_000);
+    expect(lifestyle.travelDurationMs).toBeGreaterThan(4_400);
+    expect(lifestyle.travelDurationMs).toBeLessThan(4_500);
     expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(10);
+    expect(scheduledCompletionMs(1.24 / 3, 10, 3)).toBeCloseTo(ROUND_PLAYBACK_DURATION_MS, 5);
+    expect(scheduledCompletionMs(887 / 3, 10, 3)).toBeCloseTo(ROUND_PLAYBACK_DURATION_MS, 5);
   });
 
   it('uses the full belt surface progressively from one to three columns', () => {
@@ -147,7 +156,7 @@ describe('conveyor physics', () => {
     expect(columnsForBeltLoad(300, 10, 3)).toBe(3);
   });
 
-  it('holds base speed through physical capacity, then scales to 300 per month', () => {
+  it('uses more density before shortening travel and always ends with the song', () => {
     const one = laneMotionTiming(1, 10, 3)!;
     const eight = laneMotionTiming(8, 10, 3)!;
     const twentyOne = laneMotionTiming(21, 10, 3)!;
@@ -155,29 +164,37 @@ describe('conveyor physics', () => {
     const threeHundred = laneMotionTiming(300, 10, 3)!;
 
     expect(one.columnCount).toBe(1);
-    expect(one.travelDurationMs).toBe(60_000);
+    expect(one.travelDurationMs).toBe(ROUND_PLAYBACK_DURATION_MS);
     expect(eight.columnCount).toBe(2);
-    expect(eight.travelDurationMs).toBe(60_000);
+    expect(eight.travelDurationMs).toBeGreaterThan(27_000);
     expect(twentyOne.columnCount).toBe(3);
-    expect(twentyOne.travelDurationMs).toBe(60_000);
-    expect(thirty.travelDurationMs).toBeGreaterThanOrEqual(58_000);
-    expect(threeHundred.travelDurationMs).toBeGreaterThanOrEqual(5_800);
-    expect(threeHundred.travelDurationMs).toBeLessThanOrEqual(5_900);
-    expect(threeHundred.visualRatePerSecond).toBe(5);
+    expect(twentyOne.travelDurationMs).toBeGreaterThan(26_000);
+    expect(thirty.travelDurationMs).toBeGreaterThan(25_000);
+    expect(threeHundred.travelDurationMs).toBeGreaterThan(4_300);
+    expect(threeHundred.travelDurationMs).toBeLessThan(4_500);
+    expect(threeHundred.visualRatePerSecond).toBeCloseTo(
+      300 / (ROUND_PLAYBACK_DURATION_MS / 1_000),
+      5,
+    );
+    for (const burgers of [1, 8, 21, 30, 300]) {
+      expect(scheduledCompletionMs(burgers, 10, 3)).toBeCloseTo(ROUND_PLAYBACK_DURATION_MS, 5);
+    }
   });
 
-  it('uses multiple columns at the base speed before accelerating', () => {
+  it('uses multiple columns while retaining a track-length batch', () => {
     const medium = laneMotionTiming(10, 6, 3)!;
     expect(medium.columnCount).toBe(2);
-    expect(medium.travelDurationMs).toBe(60_000);
+    expect(medium.travelDurationMs).toBeGreaterThan(27_000);
+    expect(scheduledCompletionMs(10, 6, 3)).toBeCloseTo(ROUND_PLAYBACK_DURATION_MS, 5);
   });
 
   it('preserves compact headway and the below-threshold state', () => {
     const compact = laneMotionTiming(887 / 3, 3, 2)!;
     expect(compact.columnCount).toBe(2);
     expect(compact.totalCapacity).toBe(6);
-    expect(compact.travelDurationMs).toBeGreaterThanOrEqual(1_100);
-    expect(compact.travelDurationMs).toBeLessThanOrEqual(1_160);
+    expect(compact.travelDurationMs).toBeGreaterThan(900);
+    expect(compact.travelDurationMs).toBeLessThan(930);
+    expect(scheduledCompletionMs(887 / 3, 3, 2)).toBeCloseTo(ROUND_PLAYBACK_DURATION_MS, 5);
     expect(laneMotionTiming(0.004, 3)).toBeNull();
   });
 });

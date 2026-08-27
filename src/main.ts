@@ -14,7 +14,12 @@ import {
   DEFAULT_GAME_SETUP,
   estimatePromptInputTokens,
 } from './game/setup';
-import { laneMotionTiming, projectBeltPose, type BeltSide } from './scene/conveyorPhysics';
+import {
+  laneMotionTiming,
+  projectBeltPose,
+  ROUND_PLAYBACK_DURATION_MS,
+  type BeltSide,
+} from './scene/conveyorPhysics';
 import { createStore } from './state/store';
 import type {
   AppState,
@@ -32,8 +37,8 @@ if (!app) throw new Error('Burger Works could not find its app root.');
 
 const ASSET_BASE = '/assets/burger-works';
 const BURGER_KG_CO2E = 3;
-const PRODUCTION_WINDOW_DURATION_MS = 60_000;
 const MAX_BURGERS_ON_LANE = 10;
+const MAX_VISIBLE_BURGERS_PER_LANE = 3_000;
 const SETUP_RETURN_DELAY_MS = 1_800;
 
 const initialProfile: LifestyleProfile = {
@@ -107,7 +112,7 @@ app.innerHTML = `
 
       <section class="output-strip" aria-label="Production totals and visual explanation">
         <article class="output-card output-card--left"><span>Window output</span><strong id="left-unit-count">—</strong><small id="left-unit-name">burger equivalent</small></article>
-        <div class="output-story"><strong id="stage-status" aria-live="polite">Production batch ready</strong><p id="motion-note">One comparison window enters from the back over one minute, then the run stops after the final burgers clear the foreground.</p></div>
+        <div class="output-story"><strong id="stage-status" aria-live="polite">Production batch ready</strong><p id="motion-note">One comparison window enters from the back and clears with the 48.8-second soundtrack.</p></div>
         <article class="output-card output-card--right"><span>Window output</span><strong id="right-unit-count">—</strong><small id="right-unit-name">burger equivalent</small></article>
       </section>
 
@@ -133,7 +138,7 @@ app.innerHTML = `
         <div>
           <p>New comparison</p>
           <h2>Build your carbon face-off.</h2>
-          <span>Choose the two inputs, then watch a full 30-day batch run.</span>
+          <span>Choose the two inputs, then watch a full 30-day batch run to the music.</span>
         </div>
         <button class="dialog-close" id="data-close" type="button">Back to factory</button>
       </div>
@@ -208,7 +213,7 @@ app.innerHTML = `
 
       <footer class="game-dialog__footer">
         <div class="last-round" id="last-round" hidden><span>Last round</span><strong id="last-round-summary">—</strong></div>
-        <div class="round-promise"><strong>30 days become one minute</strong><span>LEDs flash, music starts, and both lines run to completion.</span></div>
+        <div class="round-promise"><strong>30 days become one 49-second track</strong><span>LEDs flash, music starts, and both lines finish with the song.</span></div>
         <button class="primary-button game-start-button" type="submit">Done · start round</button>
       </footer>
       <p class="error-message game-error" id="error-message" role="alert" hidden></p>
@@ -226,7 +231,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>One comparison window enters from the back over one minute. Exact output fills perspective-aware rows—up to three burgers across on desktop—before belt speed rises. A slow marker carries sub-one-burger output; the LED counters accumulate to the authoritative totals. The run ends after the final burgers clear the foreground.</dd></div>
+      <div><dt>Visual scale</dt><dd>One comparison window enters and clears during the 48.8-second soundtrack. Exact output fills perspective-aware rows—up to three burgers across on desktop—before belt speed rises. A slow marker carries sub-one-burger output; the LED counters accumulate to the authoritative totals.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
@@ -535,9 +540,9 @@ function renderComparison(state: AppState): void {
     const markerNote = leftTiming.continuousMarker || rightTiming.continuousMarker
       ? ' A single slow marker carries the fractional output.'
       : '';
-    byId('motion-note').textContent = `${state.result.comparisonDays} days enter over 1 minute. The ${formatRatio(ratio)} gap uses ${busyTiming.columnCount}-wide rows; the LEDs count upward, then the run stops after the final row clears.${markerNote}`;
+    byId('motion-note').textContent = `${state.result.comparisonDays} days clear in one 49-second track. The ${formatRatio(ratio)} gap uses ${busyTiming.columnCount}-wide rows; the LEDs count upward, then the final row exits with the music.${markerNote}`;
   } else {
-    byId('motion-note').textContent = `${state.result.comparisonDays} days enter over 1 minute. The LEDs count upward, then the run stops after the last burgers clear.`;
+    byId('motion-note').textContent = `${state.result.comparisonDays} days clear in one 49-second track. The LEDs count upward until the last burgers exit.`;
   }
   byId('window-label').textContent = `${state.result.comparisonDays}-day carbon comparison`;
   byId('replay-window').textContent = `${state.result.comparisonDays}-day production · single batch`;
@@ -728,7 +733,7 @@ function renderConveyor(now: number, keepRunning = true): void {
   conveyorBurgers = active;
 
   const runProgress = clamp(
-    (now - replayStartedAt) / PRODUCTION_WINDOW_DURATION_MS,
+    (now - replayStartedAt) / ROUND_PLAYBACK_DURATION_MS,
     0,
     1,
   );
@@ -771,19 +776,21 @@ function beginBatch(): void {
 
   const schedule = (side: 'left' | 'right', data: SideData) => {
     const laneCapacity = laneCapacityForStage();
+    const burgerOutput = data.kgCo2e / BURGER_KG_CO2E;
+    const visibleBurgerCount = burgerOutput < 1
+      ? 1
+      : Math.min(MAX_VISIBLE_BURGERS_PER_LANE, Math.max(1, Math.ceil(burgerOutput)));
     const timing = laneMotionTiming(
-      data.kgCo2e / BURGER_KG_CO2E,
+      burgerOutput < 1 ? burgerOutput : visibleBurgerCount,
       laneCapacity,
       maxColumnsForStage(),
     );
     if (!timing) return;
     const duration = timing.travelDurationMs;
     const interval = timing.continuousMarker
-      ? PRODUCTION_WINDOW_DURATION_MS
+      ? ROUND_PLAYBACK_DURATION_MS
       : timing.intervalMs * timing.columnCount;
     const totalCapacity = timing.continuousMarker ? 1 : timing.totalCapacity;
-    const burgerOutput = data.kgCo2e / BURGER_KG_CO2E;
-    const visibleBurgerCount = timing.continuousMarker ? 1 : Math.max(1, Math.ceil(burgerOutput));
     conveyorLanes.push({
       side,
       accent: data.className,

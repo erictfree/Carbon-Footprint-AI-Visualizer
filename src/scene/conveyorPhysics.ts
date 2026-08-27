@@ -20,8 +20,7 @@ const FAR_RIGHT_X = 55.8;
 const NEAR_RIGHT_X = 83.3;
 const BELT_PLANE_END = 0.8;
 const BELT_PERSPECTIVE = 2;
-const WINDOW_PLAYBACK_DURATION_MS = 60_000;
-const MIN_TRAVEL_DURATION_MS = 450;
+export const ROUND_PLAYBACK_DURATION_MS = 48_814;
 const HEADWAY_MARGIN = 0.2;
 const DEFAULT_SPRITE_WIDTH_PCT = 8.5;
 const FAR_COLUMN_GAP_PCT = 0.4;
@@ -137,10 +136,10 @@ export function columnsForBeltLoad(
 }
 
 /**
- * Maps one comparison window to one playback minute. Every lane begins at the
- * same one-minute traversal: additional output occupies more rows and columns
- * across the finite belt surface. Travel time shortens only after every usable
- * position is full, preserving the exact launch cadence at higher rates.
+ * Fits one complete comparison batch to the 48.8-second Burger Blitz track.
+ * A sparse lane keeps one burger in motion for the whole song. Busier lanes
+ * first occupy more rows and columns; their travel time then shortens just
+ * enough for the final row to clear on the same beat as every other lane.
  */
 export function laneMotionTiming(
   burgersInWindow: number,
@@ -155,14 +154,13 @@ export function laneMotionTiming(
     safeRowCapacity,
     safeMaxColumns,
   );
-  const visualRatePerSecond = burgersInWindow / (WINDOW_PLAYBACK_DURATION_MS / 1_000);
-  const intervalMs = Math.max(16, Math.round(1_000 / visualRatePerSecond));
-  const perColumnIntervalMs = intervalMs * columnCount;
-  const headwayDurationMs = perColumnIntervalMs * Math.max(1, safeRowCapacity - HEADWAY_MARGIN);
-  const travelDurationMs = Math.round(Math.max(
-    MIN_TRAVEL_DURATION_MS,
-    Math.min(WINDOW_PLAYBACK_DURATION_MS, headwayDurationMs),
-  ));
+  const visibleBurgerCount = Math.max(1, Math.ceil(burgersInWindow));
+  const rowCount = Math.ceil(visibleBurgerCount / columnCount);
+  const occupiedRows = Math.min(rowCount, Math.max(1, safeRowCapacity - HEADWAY_MARGIN));
+  const rowIntervalMs = ROUND_PLAYBACK_DURATION_MS / Math.max(1, rowCount - 1 + occupiedRows);
+  const travelDurationMs = ROUND_PLAYBACK_DURATION_MS - rowIntervalMs * Math.max(0, rowCount - 1);
+  const intervalMs = rowIntervalMs / columnCount;
+  const visualRatePerSecond = burgersInWindow / (ROUND_PLAYBACK_DURATION_MS / 1_000);
 
   return {
     columnCount,

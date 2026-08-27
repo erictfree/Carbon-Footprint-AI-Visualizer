@@ -1,6 +1,6 @@
 # Burger Works
 
-Burger Works is a one-round carbon comparison game. A cartoon setup board collects a prompt, model, answer length, daily prompt rate, and Masley lifestyle defaults; then two burger-production lines turn the computed 30-day footprints into a synchronized one-minute factory run.
+Burger Works is a one-round carbon comparison game. A cartoon setup board collects a prompt, model, answer length, daily prompt rate, and Masley lifestyle defaults; then two burger-production lines turn the computed 30-day footprints into a synchronized 48.8-second factory run.
 
 ## Run locally
 
@@ -17,7 +17,7 @@ Open `http://127.0.0.1:5174/`.
 - Prompt, model, answer-length, prompts-per-day, grid, diet, home, driving, flight, and comparison-opponent inputs
 - Masley / EcoLogits model-curve interpolation with central and 95% range estimates
 - Diet, driving, flights, and home-energy lifestyle comparisons over a fixed 30-day game window
-- Straight, perspective-matched twin conveyors with identical burgers and live accumulating CO₂ displays embedded in the photographed machinery; each run starts empty, admits one comparison window from the back over one minute, and stops after the final burgers fall beyond the foreground
+- Straight, perspective-matched twin conveyors with identical burgers and live accumulating CO₂ displays embedded in the photographed machinery; each run starts empty, admits one comparison window from the back, and clears the final burgers as the 48.8-second soundtrack ends
 - Responsive physical headway: burger geometry scales directly with the photographed stage, with up to ten three-wide rows on desktop and three two-wide rows on compact screens, size-aware column spacing, and full opacity until sprites run beyond the bottom edge
 - A persistent slow-lane marker keeps sub-one-burger output visible without changing the authoritative numeric total
 - Empty-to-complete batch staging plus exact burger-equivalent output for the selected window
