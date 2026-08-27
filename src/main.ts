@@ -10,6 +10,7 @@ import {
   REGIONS,
 } from './factors/masley';
 import { SYNTHETIC_SCENARIOS, type SyntheticScenarioId } from './fixtures/synthetic';
+import { physicalLaunchInterval, projectBeltPose, type BeltSide } from './scene/conveyorPhysics';
 import {
   CsvSchemaError,
   parseUsageCsvText,
@@ -36,7 +37,7 @@ if (!app) throw new Error('Burger Works could not find its app root.');
 const ASSET_BASE = '/assets/burger-works';
 const BURGER_KG_CO2E = 3;
 const RATE_LOOP_DURATION_MS = 14_000;
-const BELT_TRAVEL_DURATION_MS = 18_000;
+const BELT_TRAVEL_DURATION_MS = 22_000;
 const MAX_BURGERS_ON_LANE = 4;
 
 const restored = loadSnapshot(window.localStorage);
@@ -111,7 +112,7 @@ app.innerHTML = `
 
       <section class="output-strip" aria-label="Production totals and visual explanation">
         <article class="output-card output-card--left"><span>Window output</span><strong id="left-unit-count">—</strong><small id="left-unit-name">burger equivalent</small></article>
-        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p>Same burger, same belt, same window. Belt speed stays fixed; production cadence shows the relative CO₂ rate.</p></div>
+        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p>Same burger, same belt, same window. More frequent burgers—not faster burgers—mean a higher CO₂ rate.</p></div>
         <article class="output-card output-card--right"><span>Window output</span><strong id="right-unit-count">—</strong><small id="right-unit-name">burger equivalent</small></article>
       </section>
 
@@ -183,7 +184,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>Both belts use the same fixed travel time. Burger launch cadence is log-compressed and capacity-capped so the lines stay readable; exact window totals remain visible below.</dd></div>
+      <div><dt>Visual scale</dt><dd>Both lanes share one fixed-speed clock. Constant world-space travel is projected onto the photographed belt plane; launch cadence is log-compressed and headway-capped so the lines stay readable.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
@@ -248,6 +249,7 @@ function formatBurgerOutput(burgers: number): string {
 
 function productionPace(burgers: number, days: number): string {
   if (burgers <= 0) return 'Line idle';
+  if (burgers < 0.005) return 'Below visual threshold';
   const perDay = burgers / Math.max(1, days);
   if (perDay < 0.05) return `About 1 burger every ${Math.round(1 / perDay)} days`;
   if (perDay < 1) return `${perDay.toFixed(2)} burger per day`;
@@ -282,8 +284,31 @@ let activeComparison: LifestyleMetricId = 'total';
 let swapped = false;
 let pendingFile: File | null = null;
 let replayTimers: number[] = [];
-let replayAnimations: Animation[] = [];
+let replayFrame: number | null = null;
+let replayStartedAt = 0;
 let hasPlayedInitialReplay = false;
+
+interface ConveyorBurger {
+  element: HTMLImageElement;
+  side: BeltSide;
+  bornAt: number;
+}
+
+interface ConveyorLane {
+  side: BeltSide;
+  accent: 'ai' | 'life';
+  intervalMs: number;
+  capacity: number;
+  nextSpawnAt: number;
+}
+
+let conveyorBurgers: ConveyorBurger[] = [];
+let conveyorLanes: ConveyorLane[] = [];
+let burgerSequence = 0;
+
+function laneCapacityForStage(): number {
+  return stage.clientWidth <= 760 ? 3 : MAX_BURGERS_ON_LANE;
+}
 
 function selectedScenario() {
   return SYNTHETIC_SCENARIOS[scenarioSelect.value as SyntheticScenarioId] ?? SYNTHETIC_SCENARIOS.typical;
@@ -415,9 +440,20 @@ function renderComparison(state: AppState): void {
   const high = Math.max(sides.left.kgCo2e, sides.right.kgCo2e);
   const ratio = low > 0 ? high / low : Number.POSITIVE_INFINITY;
   const larger = sides.left.kgCo2e >= sides.right.kgCo2e ? sides.left.label : sides.right.label;
-  byId('ratio-value').textContent = formatRatio(ratio);
-  byId('ratio-description').textContent = `${larger} is larger in this window`;
-  byId('stage-status').textContent = `Live throughput · totals differ by ${formatRatio(ratio)}`;
+  const visualThresholdKg = BURGER_KG_CO2E * 0.005;
+  if (high < visualThresholdKg) {
+    byId('ratio-value').textContent = '≈';
+    byId('ratio-description').textContent = 'Both totals are below the visual threshold';
+    byId('stage-status').textContent = 'Live throughput · both lines below threshold';
+  } else if (low < visualThresholdKg) {
+    byId('ratio-value').textContent = '≫';
+    byId('ratio-description').textContent = `${larger} is measurably larger in this window`;
+    byId('stage-status').textContent = 'Live throughput · one line below threshold';
+  } else {
+    byId('ratio-value').textContent = formatRatio(ratio);
+    byId('ratio-description').textContent = `${larger} is larger in this window`;
+    byId('stage-status').textContent = `Live throughput · totals differ by ${formatRatio(ratio)}`;
+  }
   byId('window-label').textContent = `${state.result.comparisonDays}-day carbon comparison`;
   byId('replay-window').textContent = `${state.result.comparisonDays}-day production · continuous loop`;
   byId('source-status').textContent = state.aggregate.synthetic ? 'Synthetic demonstration' : `${state.aggregate.sourceName} · local only`;
@@ -438,54 +474,65 @@ function renderComparison(state: AppState): void {
 function clearReplay(): void {
   replayTimers.forEach((timer) => window.clearTimeout(timer));
   replayTimers = [];
-  replayAnimations.forEach((animation) => animation.cancel());
-  replayAnimations = [];
+  if (replayFrame !== null) window.cancelAnimationFrame(replayFrame);
+  replayFrame = null;
+  conveyorBurgers = [];
+  conveyorLanes = [];
   flowLayer.replaceChildren();
   stage.classList.remove('is-playing', 'is-packing');
   replayButton.textContent = 'Restart lines';
   timelineFill.style.transform = 'scaleX(0)';
 }
 
-function launchItem(side: 'left' | 'right', accent: 'ai' | 'life', sizeScale: number, duration: number): Animation {
+function createBurger(side: BeltSide, accent: 'ai' | 'life', bornAt: number): ConveyorBurger {
   const item = document.createElement('img');
   item.className = `stream-item stream-item--${side}`;
   item.dataset.entity = accent;
+  item.dataset.burgerId = String(++burgerSequence);
   item.src = `${ASSET_BASE}/burger.png`;
   item.alt = '';
   flowLayer.append(item);
-  const path = side === 'left'
-    ? [
-        { left: '43.3%', top: '-4%', opacity: 0, offset: 0, transform: `translate(-50%, -50%) scale(${0.07 * sizeScale})` },
-        { left: '42.8%', top: '0%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.1 * sizeScale})` },
-        { left: '37.7%', top: '30%', opacity: 1, offset: 0.18, transform: `translate(-50%, -50%) scale(${0.35 * sizeScale})` },
-        { left: '33.1%', top: '58%', opacity: 1, offset: 0.4, transform: `translate(-50%, -50%) scale(${0.63 * sizeScale})` },
-        { left: '29.1%', top: '82%', opacity: 1, offset: 0.67, transform: `translate(-50%, -50%) scale(${0.93 * sizeScale})` },
-        { left: '26.3%', top: '99%', opacity: 1, offset: 0.88, transform: `translate(-50%, -50%) scale(${1.16 * sizeScale})` },
-        { left: '24.8%', top: '108%', opacity: 1, offset: 0.97, transform: `translate(-50%, -50%) scale(${1.3 * sizeScale})` },
-        { left: '24.1%', top: '112%', opacity: 0, offset: 1, transform: `translate(-50%, -50%) scale(${1.34 * sizeScale})` },
-      ]
-    : [
-        { left: '56.7%', top: '-4%', opacity: 0, offset: 0, transform: `translate(-50%, -50%) scale(${0.07 * sizeScale})` },
-        { left: '57.2%', top: '0%', opacity: 1, offset: 0.06, transform: `translate(-50%, -50%) scale(${0.1 * sizeScale})` },
-        { left: '62.3%', top: '30%', opacity: 1, offset: 0.18, transform: `translate(-50%, -50%) scale(${0.35 * sizeScale})` },
-        { left: '66.9%', top: '58%', opacity: 1, offset: 0.4, transform: `translate(-50%, -50%) scale(${0.63 * sizeScale})` },
-        { left: '70.9%', top: '82%', opacity: 1, offset: 0.67, transform: `translate(-50%, -50%) scale(${0.93 * sizeScale})` },
-        { left: '73.7%', top: '99%', opacity: 1, offset: 0.88, transform: `translate(-50%, -50%) scale(${1.16 * sizeScale})` },
-        { left: '75.2%', top: '108%', opacity: 1, offset: 0.97, transform: `translate(-50%, -50%) scale(${1.3 * sizeScale})` },
-        { left: '75.9%', top: '112%', opacity: 0, offset: 1, transform: `translate(-50%, -50%) scale(${1.34 * sizeScale})` },
-      ];
-  const animation = item.animate(path, { duration, easing: 'linear', fill: 'forwards' });
-  replayAnimations.push(animation);
-  void animation.finished.catch(() => undefined).finally(() => {
-    item.remove();
-    replayAnimations = replayAnimations.filter((candidate) => candidate !== animation);
-  });
-  return animation;
+  const burger = { element: item, side, bornAt };
+  conveyorBurgers.push(burger);
+  return burger;
+}
+
+function renderConveyor(now: number, keepRunning = true): void {
+  for (const lane of conveyorLanes) {
+    let catchUp = 0;
+    while (now >= lane.nextSpawnAt && catchUp < lane.capacity) {
+      const activeOnLane = conveyorBurgers.filter((burger) => burger.side === lane.side).length;
+      if (activeOnLane < lane.capacity) createBurger(lane.side, lane.accent, lane.nextSpawnAt);
+      lane.nextSpawnAt += lane.intervalMs;
+      catchUp += 1;
+    }
+  }
+
+  const active: ConveyorBurger[] = [];
+  for (const burger of conveyorBurgers) {
+    const worldProgress = (now - burger.bornAt) / BELT_TRAVEL_DURATION_MS;
+    if (worldProgress >= 1) {
+      burger.element.remove();
+      continue;
+    }
+    const pose = projectBeltPose(worldProgress, burger.side);
+    burger.element.style.left = `${pose.leftPct}%`;
+    burger.element.style.top = `${pose.topPct}%`;
+    burger.element.style.opacity = String(pose.opacity);
+    burger.element.style.transform = `translate(-50%, -92%) scale(${pose.scale})`;
+    burger.element.style.zIndex = String(8 + Math.round(pose.depth * 20));
+    active.push(burger);
+  }
+  conveyorBurgers = active;
+
+  const loopProgress = ((now - replayStartedAt) % RATE_LOOP_DURATION_MS) / RATE_LOOP_DURATION_MS;
+  timelineFill.style.transform = `scaleX(${loopProgress})`;
+  if (keepRunning) replayFrame = window.requestAnimationFrame((time) => renderConveyor(time));
 }
 
 function visualRate(kgCo2e: number): number {
   const burgers = kgCo2e / BURGER_KG_CO2E;
-  if (burgers <= 0) return 0;
+  if (burgers < 0.005) return 0;
   return clamp(Math.log10(burgers + 1) * 0.26, 0.02, 0.75);
 }
 
@@ -498,30 +545,35 @@ function startReplay(): void {
   replayButton.disabled = false;
   replayButton.textContent = 'Restart lines';
   timelineFill.style.transform = 'scaleX(0)';
-  replayAnimations.push(timelineFill.animate(
-    [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
-    { duration: RATE_LOOP_DURATION_MS, easing: 'linear', iterations: Number.POSITIVE_INFINITY },
-  ));
+  const now = performance.now();
+  replayStartedAt = now;
 
   const schedule = (side: 'left' | 'right', data: SideData) => {
     const rate = visualRate(data.kgCo2e);
     if (rate <= 0) return;
     const duration = BELT_TRAVEL_DURATION_MS;
-    const sizeScale = 1;
-    const laneCapacity = stage.clientWidth <= 760 ? 3 : MAX_BURGERS_ON_LANE;
+    const laneCapacity = laneCapacityForStage();
     const requestedInterval = Math.round(1_000 / rate);
-    const capacityInterval = Math.ceil(duration / (laneCapacity - 0.5));
-    const interval = Math.max(requestedInterval, capacityInterval);
+    const interval = physicalLaunchInterval(requestedInterval, duration, laneCapacity);
     const visibleItems = clamp(Math.ceil(duration / interval), 1, laneCapacity);
+    const seedOffset = Math.min(interval * 0.35, duration * 0.45);
     for (let index = 0; index < visibleItems; index += 1) {
-      const animation = launchItem(side, data.className, sizeScale, duration);
-      animation.currentTime = Math.min(index * interval, duration - 1);
+      const age = seedOffset + index * interval;
+      if (age >= duration) break;
+      createBurger(side, data.className, now - age);
     }
-    const timer = window.setInterval(() => launchItem(side, data.className, sizeScale, duration), interval);
-    replayTimers.push(timer);
+    conveyorLanes.push({
+      side,
+      accent: data.className,
+      intervalMs: interval,
+      capacity: laneCapacity,
+      nextSpawnAt: now + Math.max(250, interval - seedOffset),
+    });
   };
   schedule('left', sides.left);
   schedule('right', sides.right);
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  renderConveyor(now, !reducedMotion);
 }
 
 store.subscribe((state) => {
@@ -608,6 +660,14 @@ byId('data-open').addEventListener('click', () => dataDialog.showModal());
 byId('data-close').addEventListener('click', () => dataDialog.close());
 byId('methodology-open').addEventListener('click', () => methodologyDialog.showModal());
 byId('methodology-close').addEventListener('click', () => methodologyDialog.close());
+
+let observedLaneCapacity = laneCapacityForStage();
+new ResizeObserver(() => {
+  const nextCapacity = laneCapacityForStage();
+  if (nextCapacity === observedLaneCapacity) return;
+  observedLaneCapacity = nextCapacity;
+  startReplay();
+}).observe(stage);
 
 window.addEventListener('keydown', (event) => {
   const target = event.target;

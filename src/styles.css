@@ -1269,16 +1269,16 @@ input[type="range"] {
 .stream-item {
   z-index: 8;
   width: clamp(88px, 8vw, 132px);
-  transform-origin: center center;
+  transform-origin: center bottom;
   will-change: left, top, transform, opacity;
 }
 
 .stream-item[data-entity="ai"] {
-  filter: drop-shadow(0 8px 9px rgba(0, 0, 0, 0.62)) drop-shadow(0 0 8px rgba(54, 231, 223, 0.34));
+  filter: drop-shadow(0 5px 3px rgba(0, 0, 0, 0.76)) drop-shadow(0 1px 1px rgba(54, 231, 223, 0.22));
 }
 
 .stream-item[data-entity="life"] {
-  filter: drop-shadow(0 8px 9px rgba(0, 0, 0, 0.62)) drop-shadow(0 0 8px rgba(255, 172, 84, 0.34));
+  filter: drop-shadow(0 5px 3px rgba(0, 0, 0, 0.76)) drop-shadow(0 1px 1px rgba(255, 172, 84, 0.22));
 }
 
 .unit-chip {
