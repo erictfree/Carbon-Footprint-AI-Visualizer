@@ -111,7 +111,7 @@ app.innerHTML = `
 
       <section class="output-strip" aria-label="Production totals and visual explanation">
         <article class="output-card output-card--left"><span>Window output</span><strong id="left-unit-count">—</strong><small id="left-unit-name">burger equivalent</small></article>
-        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p id="motion-note">One comparison window plays in one minute. Output fills each belt first, then increases its speed.</p></div>
+        <div class="output-story"><strong id="stage-status" aria-live="polite">Live production · rate loop ready</strong><p id="motion-note">One comparison window plays in one minute. Output fills rows across each belt before increasing its speed.</p></div>
         <article class="output-card output-card--right"><span>Window output</span><strong id="right-unit-count">—</strong><small id="right-unit-name">burger equivalent</small></article>
       </section>
 
@@ -183,7 +183,7 @@ app.innerHTML = `
       <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
       <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
-      <div><dt>Visual scale</dt><dd>One comparison window plays in one minute. Exact output sets launch cadence; each belt stays at the one-minute base speed until safe burger density is full, then accelerates only as much as needed. A planar projective transform makes distant motion slower and foreground motion faster.</dd></div>
+      <div><dt>Visual scale</dt><dd>One comparison window plays in one minute. Exact output fills perspective-aware rows—up to three burgers across on desktop—before belt speed rises. A persistent slow marker keeps sub-one-burger output visible; numeric totals remain authoritative. A planar projective transform makes distant motion slower and foreground motion faster.</dd></div>
       <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
@@ -288,6 +288,7 @@ let replayStartedAt = 0;
 let hasPlayedInitialReplay = false;
 
 interface ConveyorBurger {
+  columnOffset: number;
   element: HTMLImageElement;
   side: BeltSide;
   bornAt: number;
@@ -297,6 +298,8 @@ interface ConveyorBurger {
 interface ConveyorLane {
   side: BeltSide;
   accent: 'ai' | 'life';
+  columnCount: number;
+  continuousMarker: boolean;
   intervalMs: number;
   travelDurationMs: number;
   capacity: number;
@@ -309,6 +312,16 @@ let burgerSequence = 0;
 
 function laneCapacityForStage(): number {
   return stage.clientWidth <= 760 ? 3 : MAX_BURGERS_ON_LANE;
+}
+
+function maxColumnsForStage(): number {
+  return stage.clientWidth <= 760 ? 2 : 3;
+}
+
+function columnOffsetForIndex(index: number, columnCount: number): number {
+  if (columnCount <= 1) return 0;
+  if (columnCount === 2) return index % 2 === 0 ? -1 : 1;
+  return [-1, 0, 1][index % 3] ?? 0;
 }
 
 function selectedScenario() {
@@ -455,12 +468,18 @@ function renderComparison(state: AppState): void {
     byId('ratio-description').textContent = `${larger} is larger in this window`;
     byId('stage-status').textContent = `Live throughput · totals differ by ${formatRatio(ratio)}`;
   }
-  const leftTiming = laneMotionTiming(sides.left.kgCo2e / BURGER_KG_CO2E, laneCapacityForStage());
-  const rightTiming = laneMotionTiming(sides.right.kgCo2e / BURGER_KG_CO2E, laneCapacityForStage());
+  const laneCapacity = laneCapacityForStage();
+  const maxColumns = maxColumnsForStage();
+  const leftTiming = laneMotionTiming(sides.left.kgCo2e / BURGER_KG_CO2E, laneCapacity, maxColumns);
+  const rightTiming = laneMotionTiming(sides.right.kgCo2e / BURGER_KG_CO2E, laneCapacity, maxColumns);
   if (leftTiming && rightTiming && Number.isFinite(ratio)) {
-    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. The exact ${formatRatio(ratio)} gap fills the busier belt first, then increases its speed while preserving a small headway.`;
+    const busyTiming = sides.left.kgCo2e >= sides.right.kgCo2e ? leftTiming : rightTiming;
+    const markerNote = leftTiming.continuousMarker || rightTiming.continuousMarker
+      ? ' One slow marker remains visible.'
+      : '';
+    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. The exact ${formatRatio(ratio)} gap fills the busier belt up to ${busyTiming.columnCount} wide before increasing its speed.${markerNote}`;
   } else {
-    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. Output fills each belt first, then increases its speed.`;
+    byId('motion-note').textContent = `${state.result.comparisonDays} days = 1 minute. Output fills rows across each belt before increasing its speed.`;
   }
   byId('window-label').textContent = `${state.result.comparisonDays}-day carbon comparison`;
   byId('replay-window').textContent = `${state.result.comparisonDays}-day production · continuous loop`;
@@ -497,6 +516,7 @@ function createBurger(
   accent: 'ai' | 'life',
   bornAt: number,
   travelDurationMs: number,
+  columnOffset: number,
 ): ConveyorBurger {
   const item = document.createElement('img');
   item.className = `stream-item stream-item--${side}`;
@@ -505,7 +525,7 @@ function createBurger(
   item.src = `${ASSET_BASE}/burger.png`;
   item.alt = '';
   flowLayer.append(item);
-  const burger = { element: item, side, bornAt, travelDurationMs };
+  const burger = { columnOffset, element: item, side, bornAt, travelDurationMs };
   conveyorBurgers.push(burger);
   return burger;
 }
@@ -515,8 +535,16 @@ function renderConveyor(now: number, keepRunning = true): void {
     let catchUp = 0;
     while (now >= lane.nextSpawnAt && catchUp < lane.capacity) {
       const activeOnLane = conveyorBurgers.filter((burger) => burger.side === lane.side).length;
-      if (activeOnLane < lane.capacity) {
-        createBurger(lane.side, lane.accent, lane.nextSpawnAt, lane.travelDurationMs);
+      if (activeOnLane <= lane.capacity - lane.columnCount) {
+        for (let column = 0; column < lane.columnCount; column += 1) {
+          createBurger(
+            lane.side,
+            lane.accent,
+            lane.nextSpawnAt,
+            lane.travelDurationMs,
+            columnOffsetForIndex(column, lane.columnCount),
+          );
+        }
       }
       lane.nextSpawnAt += lane.intervalMs;
       catchUp += 1;
@@ -530,7 +558,7 @@ function renderConveyor(now: number, keepRunning = true): void {
       burger.element.remove();
       continue;
     }
-    const pose = projectBeltPose(worldProgress, burger.side);
+    const pose = projectBeltPose(worldProgress, burger.side, burger.columnOffset);
     burger.element.style.left = `${pose.leftPct}%`;
     burger.element.style.top = `${pose.topPct}%`;
     burger.element.style.opacity = String(pose.opacity);
@@ -539,6 +567,12 @@ function renderConveyor(now: number, keepRunning = true): void {
     active.push(burger);
   }
   conveyorBurgers = active;
+
+  for (const lane of conveyorLanes) {
+    if (lane.continuousMarker && !conveyorBurgers.some((burger) => burger.side === lane.side)) {
+      createBurger(lane.side, lane.accent, now, lane.travelDurationMs, 0);
+    }
+  }
 
   const loopProgress = ((now - replayStartedAt) % RATE_LOOP_DURATION_MS) / RATE_LOOP_DURATION_MS;
   timelineFill.style.transform = `scaleX(${loopProgress})`;
@@ -559,24 +593,45 @@ function startReplay(): void {
 
   const schedule = (side: 'left' | 'right', data: SideData) => {
     const laneCapacity = laneCapacityForStage();
-    const timing = laneMotionTiming(data.kgCo2e / BURGER_KG_CO2E, laneCapacity);
+    const timing = laneMotionTiming(
+      data.kgCo2e / BURGER_KG_CO2E,
+      laneCapacity,
+      maxColumnsForStage(),
+    );
     if (!timing) return;
     const duration = timing.travelDurationMs;
-    const interval = timing.intervalMs;
-    const visibleItems = clamp(Math.ceil(duration / interval), 1, laneCapacity);
+    const interval = timing.continuousMarker
+      ? duration
+      : timing.intervalMs * timing.columnCount;
+    const totalCapacity = timing.continuousMarker ? 1 : timing.totalCapacity;
+    const visibleRows = timing.continuousMarker
+      ? 1
+      : clamp(Math.ceil(duration / interval), 1, laneCapacity);
     const seedOffset = Math.min(interval * 0.2, duration * 0.45);
-    for (let index = 0; index < visibleItems; index += 1) {
-      const age = seedOffset + index * interval;
+    for (let row = 0; row < visibleRows; row += 1) {
+      const age = seedOffset + row * interval;
       if (age >= duration) break;
-      createBurger(side, data.className, now - age, duration);
+      for (let column = 0; column < timing.columnCount; column += 1) {
+        createBurger(
+          side,
+          data.className,
+          now - age,
+          duration,
+          columnOffsetForIndex(column, timing.columnCount),
+        );
+      }
     }
     conveyorLanes.push({
       side,
       accent: data.className,
+      columnCount: timing.columnCount,
+      continuousMarker: timing.continuousMarker,
       intervalMs: interval,
       travelDurationMs: duration,
-      capacity: laneCapacity,
-      nextSpawnAt: now + Math.max(16, interval - seedOffset),
+      capacity: totalCapacity,
+      nextSpawnAt: timing.continuousMarker
+        ? Number.POSITIVE_INFINITY
+        : now + Math.max(16, interval - seedOffset),
     });
   };
   schedule('left', sides.left);

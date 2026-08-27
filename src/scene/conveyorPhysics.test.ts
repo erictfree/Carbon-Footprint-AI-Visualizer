@@ -46,6 +46,18 @@ describe('conveyor physics', () => {
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
   });
 
+  it('fans multiple columns out from the same vanishing point', () => {
+    const farInner = projectBeltPose(0, 'right', -1);
+    const farOuter = projectBeltPose(0, 'right', 1);
+    const nearInner = projectBeltPose(0.8, 'right', -1);
+    const nearCenter = projectBeltPose(0.8, 'right', 0);
+    const nearOuter = projectBeltPose(0.8, 'right', 1);
+
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(2.4, 5);
+    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(12, 5);
+    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(12, 5);
+  });
+
   it('keeps burgers opaque and carries them fully below the frame', () => {
     const far = projectBeltPose(0, 'left');
     const edge = projectBeltPose(0.8, 'left');
@@ -60,20 +72,32 @@ describe('conveyor physics', () => {
   });
 
   it('fills density before increasing belt velocity for extreme rate gaps', () => {
-    const ai = laneMotionTiming(1.24 / 3, 6)!;
-    const lifestyle = laneMotionTiming(887 / 3, 6)!;
+    const ai = laneMotionTiming(1.24 / 3, 6, 3)!;
+    const lifestyle = laneMotionTiming(887 / 3, 6, 3)!;
 
     expect(ai.intervalMs / lifestyle.intervalMs).toBeGreaterThan(700);
+    expect(ai.columnCount).toBe(1);
+    expect(ai.continuousMarker).toBe(true);
     expect(ai.travelDurationMs).toBe(60_000);
-    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(1_050);
-    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(1_080);
-    expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(55);
+    expect(lifestyle.columnCount).toBe(3);
+    expect(lifestyle.totalCapacity).toBe(18);
+    expect(lifestyle.travelDurationMs).toBeGreaterThanOrEqual(3_500);
+    expect(lifestyle.travelDurationMs).toBeLessThanOrEqual(3_560);
+    expect(ai.travelDurationMs / lifestyle.travelDurationMs).toBeGreaterThan(16);
+  });
+
+  it('uses multiple columns at the base speed before accelerating', () => {
+    const medium = laneMotionTiming(10, 6, 3)!;
+    expect(medium.columnCount).toBe(2);
+    expect(medium.travelDurationMs).toBe(60_000);
   });
 
   it('preserves compact headway and the below-threshold state', () => {
-    const compact = laneMotionTiming(887 / 3, 3)!;
-    expect(compact.travelDurationMs).toBeGreaterThanOrEqual(450);
-    expect(compact.travelDurationMs).toBeLessThanOrEqual(470);
+    const compact = laneMotionTiming(887 / 3, 3, 2)!;
+    expect(compact.columnCount).toBe(2);
+    expect(compact.totalCapacity).toBe(6);
+    expect(compact.travelDurationMs).toBeGreaterThanOrEqual(1_100);
+    expect(compact.travelDurationMs).toBeLessThanOrEqual(1_160);
     expect(laneMotionTiming(0.004, 3)).toBeNull();
   });
 });

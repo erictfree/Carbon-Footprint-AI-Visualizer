@@ -23,6 +23,10 @@ const EXIT_RIGHT_X = 94.1565217391;
 const BELT_PLANE_END = 0.8;
 const WINDOW_PLAYBACK_DURATION_MS = 60_000;
 const MIN_TRAVEL_DURATION_MS = 450;
+const HEADWAY_MARGIN = 0.2;
+const FAR_COLUMN_SPREAD = 1.2;
+const NEAR_COLUMN_SPREAD = 12;
+const EXIT_COLUMN_SPREAD = 16;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -46,7 +50,11 @@ export function projectWorldProgress(
   return world / (1 + perspective * (1 - world));
 }
 
-export function projectBeltPose(worldProgress: number, side: BeltSide): BeltPose {
+export function projectBeltPose(
+  worldProgress: number,
+  side: BeltSide,
+  columnOffset = 0,
+): BeltPose {
   const world = clamp01(worldProgress);
   const onBelt = world <= BELT_PLANE_END;
   const beltWorld = clamp01(world / BELT_PLANE_END);
@@ -54,9 +62,13 @@ export function projectBeltPose(worldProgress: number, side: BeltSide): BeltPose
   const exitProgress = clamp01((world - BELT_PLANE_END) / (1 - BELT_PLANE_END));
   const nearX = side === 'left' ? NEAR_LEFT_X : NEAR_RIGHT_X;
   const exitX = side === 'left' ? EXIT_LEFT_X : EXIT_RIGHT_X;
-  const leftPct = onBelt
+  const centerLeftPct = onBelt
     ? mix(side === 'left' ? FAR_LEFT_X : FAR_RIGHT_X, nearX, beltDepth)
     : mix(nearX, exitX, exitProgress);
+  const columnSpread = onBelt
+    ? mix(FAR_COLUMN_SPREAD, NEAR_COLUMN_SPREAD, beltDepth)
+    : mix(NEAR_COLUMN_SPREAD, EXIT_COLUMN_SPREAD, exitProgress);
+  const leftPct = centerLeftPct + columnOffset * columnSpread;
   const topPct = onBelt
     ? mix(FAR_CONTACT_Y, NEAR_CONTACT_Y, beltDepth)
     : mix(NEAR_CONTACT_Y, EXIT_CONTACT_Y, exitProgress);
@@ -75,7 +87,10 @@ export function projectBeltPose(worldProgress: number, side: BeltSide): BeltPose
 }
 
 export interface LaneMotionTiming {
+  columnCount: number;
+  continuousMarker: boolean;
   intervalMs: number;
+  totalCapacity: number;
   travelDurationMs: number;
   visualRatePerSecond: number;
 }
@@ -87,17 +102,31 @@ export interface LaneMotionTiming {
  */
 export function laneMotionTiming(
   burgersInWindow: number,
-  laneCapacity: number,
+  rowCapacity: number,
+  maxColumns = 3,
 ): LaneMotionTiming | null {
   if (!Number.isFinite(burgersInWindow) || burgersInWindow < 0.005) return null;
-  const safeCapacity = Math.max(1, laneCapacity);
+  const safeRowCapacity = Math.max(1, rowCapacity);
+  const safeMaxColumns = Math.max(1, Math.min(3, Math.floor(maxColumns)));
+  const columnCount = Math.min(
+    safeMaxColumns,
+    Math.max(1, Math.ceil(burgersInWindow / safeRowCapacity)),
+  );
   const visualRatePerSecond = burgersInWindow / (WINDOW_PLAYBACK_DURATION_MS / 1_000);
   const intervalMs = Math.max(16, Math.round(1_000 / visualRatePerSecond));
-  const headwayDurationMs = intervalMs * Math.max(1, safeCapacity - 0.75);
+  const perColumnIntervalMs = intervalMs * columnCount;
+  const headwayDurationMs = perColumnIntervalMs * Math.max(1, safeRowCapacity - HEADWAY_MARGIN);
   const travelDurationMs = Math.round(Math.max(
     MIN_TRAVEL_DURATION_MS,
     Math.min(WINDOW_PLAYBACK_DURATION_MS, headwayDurationMs),
   ));
 
-  return { intervalMs, travelDurationMs, visualRatePerSecond };
+  return {
+    columnCount,
+    continuousMarker: burgersInWindow < 1,
+    intervalMs,
+    totalCapacity: safeRowCapacity * columnCount,
+    travelDurationMs,
+    visualRatePerSecond,
+  };
 }
