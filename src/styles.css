@@ -182,6 +182,7 @@ button:disabled {
 .quiet-button,
 .data-button,
 .replay-button,
+.sound-button,
 .primary-button,
 .secondary-button,
 .dialog-close,
@@ -628,6 +629,27 @@ button:disabled {
   color: #8eb2b1;
   background: rgba(54, 231, 223, 0.12);
   box-shadow: none;
+}
+
+.replay-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sound-button {
+  padding: 10px 12px;
+  color: #9eb1b7;
+  border: 1px solid var(--line);
+  background: rgba(8, 22, 30, 0.72);
+  font-size: 10px;
+}
+
+.sound-button:hover,
+.sound-button[aria-pressed="true"] {
+  color: #cffffb;
+  border-color: rgba(54, 231, 223, 0.38);
+  background: var(--cyan-soft);
 }
 
 .packing-legend {

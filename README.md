@@ -22,6 +22,7 @@ Open `http://127.0.0.1:5174/`.
 - A persistent slow-lane marker keeps sub-one-burger output visible without changing the authoritative numeric total
 - Immediate steady-state line density plus exact burger-equivalent output for the selected window
 - Replay-loop restart, side swap, methodology, profile controls, and local persistence for real CSV imports; synthetic demos reset consistently in every browser
+- Optional Burger Blitz soundtrack starts with the production animation, restarts with manual replays, and preserves the one-minute loop with a short intentional silence after the 48.8-second track
 - Responsive desktop and mobile layouts
 
 ## Data format

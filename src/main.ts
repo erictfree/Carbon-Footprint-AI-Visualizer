@@ -121,10 +121,15 @@ app.innerHTML = `
           <div><strong id="replay-window">30-day production · continuous loop</strong><span id="source-status">Synthetic demonstration</span></div>
         </div>
         <div class="timeline" aria-hidden="true"><span id="timeline-fill"></span></div>
-        <button class="replay-button" id="replay-button" type="button">Restart lines</button>
+        <div class="replay-actions">
+          <button class="sound-button" id="sound-toggle" type="button" aria-pressed="false" title="Play the Burger Blitz soundtrack">♫ Music</button>
+          <button class="replay-button" id="replay-button" type="button">Restart lines</button>
+        </div>
       </section>
     </section>
   </main>
+
+  <audio id="soundtrack" src="${ASSET_BASE}/burger-blitz.mp3" preload="metadata"></audio>
 
   <dialog class="settings-dialog" id="data-dialog">
     <div class="dialog-head">
@@ -261,6 +266,9 @@ const shell = byId('works-shell');
 const stage = byId('factory-stage');
 const flowLayer = byId('flow-layer');
 const replayButton = byId<HTMLButtonElement>('replay-button');
+const soundButton = byId<HTMLButtonElement>('sound-toggle');
+const soundtrack = byId<HTMLAudioElement>('soundtrack');
+soundtrack.volume = 0.55;
 const timelineFill = byId('timeline-fill');
 const dataDialog = byId<HTMLDialogElement>('data-dialog');
 const methodologyDialog = byId<HTMLDialogElement>('methodology-dialog');
@@ -286,6 +294,9 @@ let replayTimers: number[] = [];
 let replayFrame: number | null = null;
 let replayStartedAt = 0;
 let hasPlayedInitialReplay = false;
+let soundtrackEnabled = false;
+let soundtrackLoopTimer: number | null = null;
+let soundtrackGeneration = 0;
 
 interface ConveyorBurger {
   columnOffset: number;
@@ -518,6 +529,41 @@ function clearReplay(): void {
   timelineFill.style.transform = 'scaleX(0)';
 }
 
+function renderSoundtrackControl(): void {
+  soundButton.setAttribute('aria-pressed', String(soundtrackEnabled));
+  soundButton.textContent = soundtrackEnabled ? '♫ Music on' : '♫ Music';
+  soundButton.title = soundtrackEnabled
+    ? 'Pause the Burger Blitz soundtrack'
+    : 'Play the Burger Blitz soundtrack';
+}
+
+function stopSoundtrack(reset = true): void {
+  soundtrackGeneration += 1;
+  if (soundtrackLoopTimer !== null) window.clearTimeout(soundtrackLoopTimer);
+  soundtrackLoopTimer = null;
+  soundtrack.pause();
+  if (reset) soundtrack.currentTime = 0;
+}
+
+function restartSoundtrack(): void {
+  if (!soundtrackEnabled) return;
+  if (soundtrackLoopTimer !== null) window.clearTimeout(soundtrackLoopTimer);
+  const generation = ++soundtrackGeneration;
+  soundtrack.pause();
+  soundtrack.currentTime = 0;
+  void soundtrack.play().catch(() => {
+    if (generation !== soundtrackGeneration) return;
+    soundtrackEnabled = false;
+    stopSoundtrack();
+    renderSoundtrackControl();
+  });
+  // Burger Blitz is 48.8 seconds. The remaining beat of silence preserves the
+  // authoritative one-minute production window before both loops restart.
+  soundtrackLoopTimer = window.setTimeout(() => {
+    if (soundtrackEnabled && generation === soundtrackGeneration) restartSoundtrack();
+  }, RATE_LOOP_DURATION_MS);
+}
+
 function createBurger(
   side: BeltSide,
   accent: 'ai' | 'life',
@@ -663,6 +709,7 @@ function startReplay(): void {
   };
   schedule('left', sides.left);
   schedule('right', sides.right);
+  if (soundtrackEnabled) restartSoundtrack();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   renderConveyor(now, !reducedMotion);
 }
@@ -742,6 +789,17 @@ byId('reset-profile').addEventListener('click', () => updateProfile({
 }));
 
 replayButton.addEventListener('click', startReplay);
+soundButton.addEventListener('click', () => {
+  if (soundtrackEnabled) {
+    soundtrackEnabled = false;
+    stopSoundtrack();
+    renderSoundtrackControl();
+    return;
+  }
+  soundtrackEnabled = true;
+  renderSoundtrackControl();
+  startReplay();
+});
 byId('swap-sides').addEventListener('click', () => {
   swapped = !swapped;
   renderComparison(store.getState());
@@ -798,4 +856,5 @@ mappingForm.addEventListener('submit', (event) => {
   void loadFile(file, mapping);
 });
 
+renderSoundtrackControl();
 if (!initialAggregate) loadSynthetic('typical');
