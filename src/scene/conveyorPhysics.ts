@@ -14,11 +14,11 @@ const FAR_SCALE = 0.1;
 const NEAR_SCALE = 1.18;
 const FAR_LEFT_X = 48.4;
 const NEAR_LEFT_X = 21.6;
-const FAR_RIGHT_X = 54.95;
+const FAR_RIGHT_X = 54.75;
 // The arcade background is less asymmetric than Burger Belt 2. Its lifestyle
 // belt still fans right, but the usable surface center finishes several points
 // left of the legacy trajectory.
-const NEAR_RIGHT_X = 80.55;
+const NEAR_RIGHT_X = 80.35;
 const BELT_PLANE_END = 0.8;
 const BELT_PERSPECTIVE = 2;
 export const ROUND_PLAYBACK_DURATION_MS = 48_814;
