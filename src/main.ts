@@ -31,8 +31,6 @@ import type {
   DrivingId,
   FlyingFrequencyId,
   HomeEnergyId,
-  LifestyleImpact,
-  LifestyleMetricId,
   LifestyleProfile,
   RegionId,
 } from './types';
@@ -221,15 +219,6 @@ app.innerHTML = `
             <label><span>Driving</span><select id="driving-select">${Object.entries(DRIVING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
             <label><span>Flying</span><select id="flying-select">${Object.entries(FLYING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
           </div>
-          <div class="settings-heading opponent-heading"><span>Your footprint</span><small>Choose what to spotlight</small></div>
-          <div class="impact-picker">
-            <button class="impact-choice is-active" data-comparison="total" type="button" aria-pressed="true">Total <strong id="impact-total">—</strong></button>
-            <button class="impact-choice" data-comparison="baseline" type="button" aria-pressed="false">Regional <strong id="impact-baseline">—</strong></button>
-            <button class="impact-choice" data-comparison="diet" type="button" aria-pressed="false">Diet <strong id="impact-diet">—</strong></button>
-            <button class="impact-choice" data-comparison="driving" type="button" aria-pressed="false">Driving <strong id="impact-driving">—</strong></button>
-            <button class="impact-choice" data-comparison="flights" type="button" aria-pressed="false">Flights <strong id="impact-flights">—</strong></button>
-            <button class="impact-choice" data-comparison="home" type="button" aria-pressed="false">Home <strong id="impact-home">—</strong></button>
-          </div>
         </section>
       </div>
 
@@ -388,7 +377,6 @@ const GAME_PRESETS: Record<string, Parameters<typeof createGameUsageAggregate>[0
   agent: { model: 'gpt-5.5-pro', outputTokens: 100_000, promptsPerDay: 24 },
 };
 
-let activeComparison: LifestyleMetricId = 'total';
 let swapped = false;
 let replayFrame: number | null = null;
 let preRollTimer: number | null = null;
@@ -434,11 +422,6 @@ function maxColumnsForStage(): number {
   return stage.clientWidth <= 760 ? 2 : 3;
 }
 
-function impactFor(state: AppState, id: LifestyleMetricId): LifestyleImpact | null {
-  if (!state.result) return null;
-  return id === 'total' ? state.result.lifestyle.total : state.result.lifestyle.components[id];
-}
-
 function profileFromSetup(): LifestyleProfile {
   return {
     ...store.getState().profile,
@@ -474,12 +457,9 @@ function syncLifestylePreview(): void {
 function syncRoundPreview(): void {
   const aggregate = setupAggregateFromControls();
   const result = calculateComparison(aggregate, profileFromSetup());
-  const lifestyle = activeComparison === 'total'
-    ? result.lifestyle.total
-    : result.lifestyle.components[activeComparison];
   byId('setup-ai-preview').textContent = formatCarbon(result.aiCarbonKgCo2e.central);
   byId('setup-ai-caption').textContent = `${aggregate.requests.toLocaleString('en-US')} prompts / day · ${formatEnergy(result.energyWh.central)}`;
-  byId('setup-life-preview').textContent = formatCarbon(lifestyle.kgCo2e);
+  byId('setup-life-preview').textContent = formatCarbon(result.lifestyle.total.kgCo2e);
 }
 
 function resetSetupControls(): void {
@@ -527,8 +507,8 @@ interface SideData {
 }
 
 function currentSides(state: AppState): { left: SideData; right: SideData } | null {
-  const impact = impactFor(state, activeComparison);
-  if (!impact || !state.result) return null;
+  if (!state.result) return null;
+  const impact = state.result.lifestyle.total;
   const ai: SideData = {
     label: 'AI usage',
     factoryName: 'AI line',
@@ -537,8 +517,8 @@ function currentSides(state: AppState): { left: SideData; right: SideData } | nu
     className: 'ai',
   };
   const life: SideData = {
-    label: impact.label,
-    factoryName: `${impact.label} line`,
+    label: 'Your lifestyle',
+    factoryName: 'Your lifestyle line',
     kgCo2e: impact.kgCo2e,
     range: 'Lifestyle factor estimate',
     className: 'life',
@@ -555,8 +535,7 @@ function applyLoad(side: 'left' | 'right', data: SideData, days: number): void {
 function renderComparison(state: AppState): void {
   if (!state.aggregate || !state.result) return;
   const sides = currentSides(state);
-  const impact = impactFor(state, activeComparison);
-  if (!sides || !impact) return;
+  if (!sides) return;
 
   shell.classList.toggle('is-swapped', swapped);
   byId('left-label').textContent = sides.left.label;
@@ -605,15 +584,6 @@ function renderComparison(state: AppState): void {
 
   applyLoad('left', sides.left, state.result.comparisonDays);
   applyLoad('right', sides.right, state.result.comparisonDays);
-  byId('impact-total').textContent = formatCarbon(state.result.lifestyle.total.kgCo2e);
-  for (const [id, component] of Object.entries(state.result.lifestyle.components)) {
-    byId(`impact-${id}`).textContent = formatCarbon(component.kgCo2e);
-  }
-  document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((button) => {
-    const selected = button.dataset.comparison === activeComparison;
-    button.classList.toggle('is-active', selected);
-    button.setAttribute('aria-pressed', String(selected));
-  });
 }
 
 function clearReplay(): void {
@@ -903,14 +873,6 @@ store.subscribe((state) => {
     renderComparison(state);
     prepareBatch();
   }
-});
-
-document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((button) => {
-  button.addEventListener('click', () => {
-    activeComparison = button.dataset.comparison as LifestyleMetricId;
-    renderComparison(store.getState());
-    syncRoundPreview();
-  });
 });
 
 promptsPerDayInput.addEventListener('input', syncRoundPreview);

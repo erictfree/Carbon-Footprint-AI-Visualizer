@@ -800,36 +800,6 @@ dialog::backdrop {
   font-size: 9px;
 }
 
-.impact-picker {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 7px;
-}
-
-.impact-choice {
-  padding: 10px;
-  color: #8fa3a9;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  font-size: 9px;
-  font-weight: 720;
-  text-align: left;
-}
-
-.impact-choice strong {
-  display: block;
-  margin-top: 5px;
-  color: #c3d0ce;
-  font-size: 10px;
-}
-
-.impact-choice.is-active {
-  color: #ffe5c9;
-  border-color: rgba(255, 172, 84, 0.42);
-  background: var(--amber-soft);
-}
-
 .control-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1193,10 +1163,6 @@ input[type="range"] {
 
   .packing-step {
     border-left: 0;
-  }
-
-  .impact-picker {
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .control-grid,
@@ -1877,46 +1843,6 @@ input[type="range"] {
   font-family: var(--game-font);
 }
 
-.opponent-heading {
-  margin-top: 18px;
-}
-
-.game-dialog .impact-picker {
-  grid-template-columns: repeat(6, 1fr);
-  gap: 5px;
-}
-
-.game-dialog .impact-choice {
-  min-width: 0;
-  padding: 8px 7px;
-  color: #481706;
-  border-color: rgba(255, 238, 171, 0.92);
-  border-radius: 9px;
-  background: linear-gradient(180deg, #fff9e8, #ffdca0);
-  font-size: 8px;
-  text-align: center;
-  font-family: var(--game-font);
-}
-
-.game-dialog .impact-choice strong {
-  overflow: hidden;
-  color: #7f1a12;
-  font-size: 8px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.game-dialog .impact-choice.is-active {
-  color: #421d00;
-  border-color: #ffbf31;
-  background: #ffd54a;
-  box-shadow: 0 3px 0 #8d2d07;
-}
-
-.game-dialog .impact-choice.is-active strong {
-  color: #421d00;
-}
-
 .game-dialog__footer {
   position: sticky;
   z-index: 20;
@@ -2051,9 +1977,6 @@ input[type="range"] {
     white-space: normal;
   }
 
-  .game-dialog .impact-picker {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 /* Main factory game board — matched to interfaceinspiration.jpg.

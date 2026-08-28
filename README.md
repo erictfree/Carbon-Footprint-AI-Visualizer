@@ -16,7 +16,7 @@ Open `http://127.0.0.1:5174/`.
 - First-run setup dialog styled from the supplied bright burger-game reference, with live 30-day CO₂ previews and functional light-chat, coding-day, and agent-marathon presets
 - Main factory board styled from `interfaceinspiration.jpg`: red arcade cabinet, outlined score typography, yellow output counters, green batch-status panel, and oversized music/start controls
 - A three-row model, typical-output, and prompts-per-day AI mix; Masley’s default GPT-5.5, Claude Sonnet 4.6, and Gemini 3.5 Flash rows are preloaded
-- Location/grid, home, driving, diet, categorical flying, regional baseline, and footprint-spotlight inputs
+- Location/grid, home, driving, diet, categorical flying, and regional-baseline inputs
 - Masley / EcoLogits energy and embodied-hardware model-curve interpolation with central and 95% range estimates
 - Regional baseline, diet, driving, flying, and home-energy lifestyle comparisons over a fixed 30-day game window
 - Straight, perspective-matched twin conveyors with identical burgers and live accumulating CO₂ displays embedded in the photographed machinery; each run starts empty, admits one comparison window from the back, and clears the final burgers as the 48.8-second soundtrack ends
@@ -30,7 +30,7 @@ Open `http://127.0.0.1:5174/`.
 ## Round flow
 
 1. Adjust the AI-use rows or choose a preset.
-2. Adjust the default lifestyle inputs and choose whether to spotlight your total, regional baseline, diet, driving, flying, or home footprint.
+2. Adjust the default lifestyle inputs.
 3. Press **Done · start round**.
 4. Watch both 30-day footprints run through the factory.
 5. When production finishes, the setup board returns for the next round.
