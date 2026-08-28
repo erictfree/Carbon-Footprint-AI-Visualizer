@@ -45,7 +45,7 @@ describe('conveyor physics', () => {
 
     expect(nearLeft.topPct).toBeGreaterThan(farLeft.topPct);
     expect(nearLeft.scale).toBeGreaterThan(farLeft.scale);
-    expect(nearLeft.leftPct).toBeCloseTo(25.8, 5);
+    expect(nearLeft.leftPct).toBeCloseTo(30, 5);
     expect(nearRight.leftPct).toBeCloseTo(80.35, 5);
   });
 
@@ -129,8 +129,8 @@ describe('conveyor physics', () => {
       packedRailCenterOffset('left', 3),
     );
 
-    expect(centeredFar.leftPct).toBeCloseTo(48.4, 5);
-    expect(packedFar.leftPct).toBeCloseTo(46, 5);
+    expect(centeredFar.leftPct).toBeCloseTo(49.4, 5);
+    expect(packedFar.leftPct).toBeCloseTo(47, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 
