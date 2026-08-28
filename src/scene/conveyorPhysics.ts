@@ -10,7 +10,7 @@ export interface BeltPose {
 
 const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
-const FAR_SCALE = 0.12;
+const FAR_SCALE = 0.1;
 const NEAR_SCALE = 1.18;
 const FAR_LEFT_X = 48.4;
 const NEAR_LEFT_X = 21.6;
