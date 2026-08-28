@@ -12,11 +12,12 @@ const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
 const FAR_SCALE = 0.1;
 const NEAR_SCALE = 1.18;
-const FAR_LEFT_X = 49.4;
-// The photographed AI ramp is less steep than the legacy trajectory. Its
-// foreground center sits farther right, so the burger rays must rotate toward
-// the divider instead of drifting across the outer-left half of the belt.
-const NEAR_LEFT_X = 30;
+const FAR_LEFT_X = 49.18;
+// Keep the AI stream on the photographed belt center after giving it the same
+// symmetric column grid as the lifestyle stream. The AI belt is slightly wider
+// in the foreground, so its center ray shifts left as its columns open while
+// the accepted right outside ray stays in place.
+const NEAR_LEFT_X = 24.128;
 const FAR_RIGHT_X = 54.75;
 // The arcade background is less asymmetric than Burger Belt 2. Its lifestyle
 // belt still fans right, but the usable surface center finishes several points
@@ -29,6 +30,7 @@ const HEADWAY_MARGIN = 0.2;
 const DEFAULT_SPRITE_WIDTH_PCT = 8.5;
 const FAR_COLUMN_GAP_PCT = 0.4;
 const NEAR_COLUMN_GAP_PCT = 1.5;
+const LEFT_NEAR_COLUMN_SPREAD_SCALE = 1.15;
 const SPRITE_SCALE_EASING = 1.35;
 
 function clamp01(value: number): number {
@@ -49,33 +51,29 @@ export function packedRailCenterOffset(
 }
 
 /**
- * The right belt is especially narrow at the photographed horizon. Compress
- * only the distant three-wide row around its center ray, then open it back to
- * full physical spacing as the belt approaches the camera. This clears both
- * rails without moving the accepted centerline or foreground placement.
+ * Compress distant three-wide rows around each belt's center ray, then open
+ * them back to full physical spacing as they approach the camera. Using the
+ * same expansion curve on both belts keeps their apparent movement matched.
  */
 export function packedColumnSpreadScale(
-  side: BeltSide,
+  _side: BeltSide,
   columnCount: number,
 ): number {
-  return side === 'right' && columnCount >= 3 ? 0.56 : 1;
+  return columnCount >= 3 ? 0.56 : 1;
 }
 
 /**
- * Returns evenly spaced column coordinates. The AI belt's usable photographed
- * surface is substantially narrower beside the inner rail, so its middle and
- * inner columns use the same tighter gap while the accepted outer-left ray
- * stays fixed. Rear-only lifestyle packing belongs in the perspective spread
- * calculation so foreground burgers recover their full physical spacing.
+ * Returns the same evenly spaced column coordinates for both belts. Their
+ * photographed centerlines differ, but the burgers' lateral movement and row
+ * spacing should not.
  */
 export function columnOffsetForIndex(
   index: number,
   columnCount: number,
-  side: BeltSide,
+  _side: BeltSide,
 ): number {
   if (columnCount <= 1) return 0;
   if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
-  if (side === 'left') return [-1, -0.32, 0.36][index % 3] ?? 0;
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
@@ -131,7 +129,7 @@ export function projectBeltPose(
   ) * Math.max(0, farColumnSpreadScale);
   const nearColumnSpread = (
     safeSpriteWidthPct * NEAR_SCALE + NEAR_COLUMN_GAP_PCT
-  );
+  ) * (side === 'left' ? LEFT_NEAR_COLUMN_SPREAD_SCALE : 1);
   const columnSpread = mix(farColumnSpread, nearColumnSpread, beltDepth);
   const leftPct = centerLeftPct + columnOffset * columnSpread;
   const depth = beltDepth;

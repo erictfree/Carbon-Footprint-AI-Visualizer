@@ -45,7 +45,7 @@ describe('conveyor physics', () => {
 
     expect(nearLeft.topPct).toBeGreaterThan(farLeft.topPct);
     expect(nearLeft.scale).toBeGreaterThan(farLeft.scale);
-    expect(nearLeft.leftPct).toBeCloseTo(30, 5);
+    expect(nearLeft.leftPct).toBeCloseTo(24.128, 5);
     expect(nearRight.leftPct).toBeCloseTo(80.35, 5);
   });
 
@@ -129,37 +129,66 @@ describe('conveyor physics', () => {
       packedRailCenterOffset('left', 3),
     );
 
-    expect(centeredFar.leftPct).toBeCloseTo(49.4, 5);
+    expect(centeredFar.leftPct).toBeCloseTo(49.18, 5);
+    expect(centeredNear.leftPct).toBeCloseTo(24.128, 5);
     expect(packedFar.leftPct).toBeCloseTo(centeredFar.leftPct, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 
-  it('compresses only the distant packed right row around its centerline', () => {
-    const farScale = packedColumnSpreadScale('right', 3);
-    const farInner = projectBeltPose(0, 'right', -1, 8.5, 0, farScale);
-    const farCenter = projectBeltPose(0, 'right', 0, 8.5, 0, farScale);
-    const farOuter = projectBeltPose(0, 'right', 1, 8.5, 0, farScale);
-    const nearInner = projectBeltPose(0.8, 'right', -1, 8.5, 0, farScale);
-    const nearOuter = projectBeltPose(0.8, 'right', 1, 8.5, 0, farScale);
+  it('opens packed rows symmetrically around both photographed centerlines', () => {
+    for (const side of ['left', 'right'] as const) {
+      const farScale = packedColumnSpreadScale(side, 3);
+      const farInner = projectBeltPose(0, side, -1, 8.5, 0, farScale);
+      const farCenter = projectBeltPose(0, side, 0, 8.5, 0, farScale);
+      const farOuter = projectBeltPose(0, side, 1, 8.5, 0, farScale);
+      const nearInner = projectBeltPose(0.8, side, -1, 8.5, 0, farScale);
+      const nearCenter = projectBeltPose(0.8, side, 0, 8.5, 0, farScale);
+      const nearOuter = projectBeltPose(0.8, side, 1, 8.5, 0, farScale);
 
-    expect(farScale).toBe(0.56);
-    expect(packedColumnSpreadScale('left', 3)).toBe(1);
-    expect(farCenter.leftPct).toBeCloseTo(54.75, 5);
-    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(2.5 * 0.56, 5);
-    expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(23.06, 5);
+      expect(farScale).toBe(0.56);
+      expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(2.5 * 0.56, 5);
+      expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(
+        side === 'left' ? 23.06 * 1.15 : 23.06,
+        5,
+      );
+      expect(farCenter.leftPct - farInner.leftPct).toBeCloseTo(
+        farOuter.leftPct - farCenter.leftPct,
+        5,
+      );
+      expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(
+        nearOuter.leftPct - nearCenter.leftPct,
+        5,
+      );
+    }
   });
 
-  it('keeps AI columns evenly spaced while clearing the inner rail', () => {
-    const offsets = [0, 1, 2].map((index) => (
-      columnOffsetForIndex(index, 3, 'left')
-    ));
-    const firstGap = offsets[1]! - offsets[0]!;
-    const secondGap = offsets[2]! - offsets[1]!;
+  it('uses the same evenly spaced columns on both belts', () => {
+    for (const side of ['left', 'right'] as const) {
+      const offsets = [0, 1, 2].map((index) => (
+        columnOffsetForIndex(index, 3, side)
+      ));
+      const firstGap = offsets[1]! - offsets[0]!;
+      const secondGap = offsets[2]! - offsets[1]!;
 
-    expect(offsets).toEqual([-1, -0.32, 0.36]);
-    expect(firstGap).toBeCloseTo(0.68, 5);
-    expect(secondGap).toBeCloseTo(firstGap, 5);
-    expect(columnOffsetForIndex(1, 3, 'right')).toBe(0);
+      expect(offsets).toEqual([-1, 0, 1]);
+      expect(firstGap).toBe(1);
+      expect(secondGap).toBe(firstGap);
+    }
+  });
+
+  it('opens the wider AI foreground around its accepted right outside ray', () => {
+    const spriteWidthPct = 11;
+    const farScale = packedColumnSpreadScale('left', 3);
+    const left = projectBeltPose(0.8, 'left', -1, spriteWidthPct, 0, farScale);
+    const center = projectBeltPose(0.8, 'left', 0, spriteWidthPct, 0, farScale);
+    const right = projectBeltPose(0.8, 'left', 1, spriteWidthPct, 0, farScale);
+
+    expect(right.leftPct).toBeCloseTo(40.78, 3);
+    expect(center.leftPct - left.leftPct).toBeCloseTo(
+      right.leftPct - center.leftPct,
+      5,
+    );
+    expect(right.leftPct - left.leftPct).toBeCloseTo(28.96 * 1.15, 5);
   });
 
   it('keeps burgers opaque and carries them fully below the frame', () => {
