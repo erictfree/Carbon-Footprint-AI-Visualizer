@@ -227,7 +227,7 @@ app.innerHTML = `
             <label><span>Driving</span><select id="driving-select">${Object.entries(DRIVING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
             <label><span>Flying</span><select id="flying-select">${Object.entries(FLYING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
           </div>
-          <div class="settings-heading opponent-heading"><span>Compare AI against</span><small>Pick the opponent</small></div>
+          <div class="settings-heading opponent-heading"><span>Your footprint</span><small>Choose what to spotlight</small></div>
           <div class="impact-picker">
             <button class="impact-choice is-active" data-comparison="total" type="button" aria-pressed="true">Total <strong id="impact-total">—</strong></button>
             <button class="impact-choice" data-comparison="baseline" type="button" aria-pressed="false">Regional <strong id="impact-baseline">—</strong></button>
