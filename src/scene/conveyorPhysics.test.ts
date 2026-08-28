@@ -46,7 +46,7 @@ describe('conveyor physics', () => {
     expect(nearLeft.topPct).toBeGreaterThan(farLeft.topPct);
     expect(nearLeft.scale).toBeGreaterThan(farLeft.scale);
     expect(nearLeft.leftPct).toBeCloseTo(21.6, 5);
-    expect(nearRight.leftPct).toBeCloseTo(80.8, 5);
+    expect(nearRight.leftPct).toBeCloseTo(80.55, 5);
   });
 
   it('follows the calibrated straight centerlines through the off-screen exit', () => {
@@ -56,8 +56,8 @@ describe('conveyor physics', () => {
     const beltSlope = (edge.leftPct - far.leftPct) / (edge.topPct - far.topPct);
     const exitSlope = (exit.leftPct - edge.leftPct) / (exit.topPct - edge.topPct);
 
-    expect(far.leftPct).toBeCloseTo(55.2, 4);
-    expect(edge.leftPct).toBeCloseTo(80.8, 4);
+    expect(far.leftPct).toBeCloseTo(54.95, 4);
+    expect(edge.leftPct).toBeCloseTo(80.55, 4);
     expect(exit.leftPct).toBeGreaterThan(100);
     expect(exitSlope).toBeCloseTo(beltSlope, 4);
   });
@@ -69,9 +69,9 @@ describe('conveyor physics', () => {
     const nearCenter = projectBeltPose(0.8, 'right', 0);
     const nearOuter = projectBeltPose(0.8, 'right', 1);
 
-    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18, 5);
-    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(10.35, 5);
-    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(10.35, 5);
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(2.84, 5);
+    expect(nearCenter.leftPct - nearInner.leftPct).toBeCloseTo(11.53, 5);
+    expect(nearOuter.leftPct - nearCenter.leftPct).toBeCloseTo(11.53, 5);
   });
 
   it('keeps same-row sprites separated along straight belt rays', () => {
@@ -85,7 +85,7 @@ describe('conveyor physics', () => {
     });
 
     expect(edgeGaps[0]).toBeCloseTo(0.4, 5);
-    expect(edgeGaps.at(-1)).toBeCloseTo(1, 5);
+    expect(edgeGaps.at(-1)).toBeCloseTo(1.5, 5);
     for (const edgeGap of edgeGaps) {
       expect(edgeGap).toBeGreaterThan(0);
     }
@@ -144,9 +144,9 @@ describe('conveyor physics', () => {
 
     expect(farScale).toBe(0.56);
     expect(packedColumnSpreadScale('left', 3)).toBe(1);
-    expect(farCenter.leftPct).toBeCloseTo(55.2, 5);
-    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18 * 0.56, 5);
-    expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(20.7, 5);
+    expect(farCenter.leftPct).toBeCloseTo(54.95, 5);
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(2.84 * 0.56, 5);
+    expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(23.06, 5);
   });
 
   it('keeps the tightened lifestyle columns evenly spaced', () => {

@@ -10,22 +10,22 @@ export interface BeltPose {
 
 const FAR_CONTACT_Y = -3;
 const NEAR_CONTACT_Y = 112;
-const FAR_SCALE = 0.14;
-const NEAR_SCALE = 1.1;
+const FAR_SCALE = 0.12;
+const NEAR_SCALE = 1.18;
 const FAR_LEFT_X = 48.4;
 const NEAR_LEFT_X = 21.6;
-const FAR_RIGHT_X = 55.2;
+const FAR_RIGHT_X = 54.95;
 // The arcade background is less asymmetric than Burger Belt 2. Its lifestyle
 // belt still fans right, but the usable surface center finishes several points
 // left of the legacy trajectory.
-const NEAR_RIGHT_X = 80.8;
+const NEAR_RIGHT_X = 80.55;
 const BELT_PLANE_END = 0.8;
 const BELT_PERSPECTIVE = 2;
 export const ROUND_PLAYBACK_DURATION_MS = 48_814;
 const HEADWAY_MARGIN = 0.2;
 const DEFAULT_SPRITE_WIDTH_PCT = 8.5;
 const FAR_COLUMN_GAP_PCT = 0.4;
-const NEAR_COLUMN_GAP_PCT = 1;
+const NEAR_COLUMN_GAP_PCT = 1.5;
 const SPRITE_SCALE_EASING = 1.35;
 
 function clamp01(value: number): number {
