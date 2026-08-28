@@ -149,17 +149,17 @@ describe('conveyor physics', () => {
     expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(23.06, 5);
   });
 
-  it('keeps the tightened lifestyle columns evenly spaced', () => {
+  it('keeps AI columns evenly spaced while clearing the inner rail', () => {
     const offsets = [0, 1, 2].map((index) => (
-      columnOffsetForIndex(index, 3, 'right')
+      columnOffsetForIndex(index, 3, 'left')
     ));
     const firstGap = offsets[1]! - offsets[0]!;
     const secondGap = offsets[2]! - offsets[1]!;
 
-    expect(offsets).toEqual([-1, 0, 1]);
-    expect(firstGap).toBeCloseTo(1, 5);
+    expect(offsets).toEqual([-1, -0.08, 0.84]);
+    expect(firstGap).toBeCloseTo(0.92, 5);
     expect(secondGap).toBeCloseTo(firstGap, 5);
-    expect(columnOffsetForIndex(1, 3, 'left')).toBe(0);
+    expect(columnOffsetForIndex(1, 3, 'right')).toBe(0);
   });
 
   it('keeps burgers opaque and carries them fully below the frame', () => {

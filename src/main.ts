@@ -43,6 +43,7 @@ const BURGER_KG_CO2E = 3;
 const MAX_BURGERS_ON_LANE = 10;
 const MAX_VISIBLE_BURGERS_PER_LANE = 3_000;
 const SETUP_RETURN_DELAY_MS = 1_800;
+const RIGHT_LANE_LEFT_SHIFT_PX = 10;
 
 const initialProfile: LifestyleProfile = {
   ...DEFAULT_PROFILE,
@@ -746,7 +747,9 @@ function renderConveyor(now: number, keepRunning = true): void {
       burger.farCenterOffsetPct,
       burger.farColumnSpreadScale,
     );
-    burger.element.style.left = `${pose.leftPct}%`;
+    burger.element.style.left = burger.side === 'right'
+      ? `calc(${pose.leftPct}% - ${RIGHT_LANE_LEFT_SHIFT_PX}px)`
+      : `${pose.leftPct}%`;
     burger.element.style.top = `${pose.topPct}%`;
     burger.element.style.opacity = String(pose.opacity);
     burger.element.style.transform = `translate(-50%, -92%) scale(${pose.scale})`;

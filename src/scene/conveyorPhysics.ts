@@ -62,17 +62,20 @@ export function packedColumnSpreadScale(
 }
 
 /**
- * Returns evenly spaced column coordinates. Rear-only packing belongs in the
- * perspective spread calculation so foreground burgers always recover their
- * full physical width plus the intended air gap.
+ * Returns evenly spaced column coordinates. The AI belt's usable photographed
+ * surface is slightly narrower beside the inner rail, so its middle and inner
+ * columns use the same modestly tighter gap while the accepted outer-left ray
+ * stays fixed. Rear-only lifestyle packing belongs in the perspective spread
+ * calculation so foreground burgers recover their full physical spacing.
  */
 export function columnOffsetForIndex(
   index: number,
   columnCount: number,
-  _side: BeltSide,
+  side: BeltSide,
 ): number {
   if (columnCount <= 1) return 0;
   if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
+  if (side === 'left') return [-1, -0.08, 0.84][index % 3] ?? 0;
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
