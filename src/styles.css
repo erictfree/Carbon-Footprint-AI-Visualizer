@@ -1801,6 +1801,45 @@ input[type="range"] {
   margin-top: 14px;
 }
 
+.ai-usage-rows {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px;
+  border: 2px solid rgba(50, 216, 213, 0.62);
+  border-radius: 13px;
+  background: rgba(69, 4, 12, 0.28);
+}
+
+.ai-usage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(74px, 0.62fr);
+  gap: 7px;
+}
+
+.ai-usage-row label,
+.ai-usage-row select,
+.ai-usage-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ai-usage-row select,
+.ai-usage-row input[type="number"] {
+  padding-right: 7px;
+  padding-left: 7px;
+  font-size: 10px;
+}
+
+.ai-usage-row--head {
+  padding: 0 5px;
+  color: rgba(255, 245, 218, 0.82);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .game-dialog .control-grid label {
   color: #ffefc1;
   font-size: 9px;
@@ -1868,7 +1907,7 @@ input[type="range"] {
 }
 
 .game-dialog .impact-picker {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 5px;
 }
 

@@ -1,9 +1,10 @@
 import {
   COMPARISON_WINDOWS,
   DIETS,
-  DRIVING_KG_CO2E_PER_MILE,
+  DRIVING,
+  estimateRequestEmbodiedCarbon,
   estimateRequestEnergy,
-  FLIGHT_KG_CO2E,
+  FLYING,
   HOME_ENERGY,
   REGIONS,
   resolveModelCurve,
@@ -51,6 +52,10 @@ function energyForModel(usage: ModelUsageAggregate, scale = 1): ModelEnergyBreak
     outputTokens: usage.outputTokens * scale,
     averageOutputTokens,
     energyWh: scaleRange(estimateRequestEnergy(curve, averageOutputTokens), requests),
+    embodiedCarbonGrams: scaleRange(
+      estimateRequestEmbodiedCarbon(curve, averageOutputTokens),
+      requests,
+    ),
   };
 }
 
@@ -77,6 +82,12 @@ function carbonToImpact(
 
 function calculateLifestyle(days: number, profile: LifestyleProfile): ComparisonResult['lifestyle'] {
   const annualScale = days / 365;
+  const baseline = carbonToImpact(
+    'baseline',
+    'Regional baseline',
+    REGIONS[profile.region].annualBaselineKgCo2e * annualScale,
+    profile,
+  );
   const diet = carbonToImpact(
     'diet',
     'Diet',
@@ -86,21 +97,28 @@ function calculateLifestyle(days: number, profile: LifestyleProfile): Comparison
   const driving = carbonToImpact(
     'driving',
     'Driving',
-    profile.weeklyDrivingMiles * (days / 7) * DRIVING_KG_CO2E_PER_MILE,
+    DRIVING[profile.driving].annualKgCo2e * annualScale,
     profile,
   );
-  const flightAnnualKg = Object.entries(profile.flightsPerYear).reduce(
-    (total, [length, count]) => total + FLIGHT_KG_CO2E[length as keyof typeof FLIGHT_KG_CO2E].kgCo2ePerRoundTrip * count,
-    0,
+  const flights = carbonToImpact(
+    'flights',
+    'Flying',
+    FLYING[profile.flyingFrequency].annualKgCo2e * annualScale,
+    profile,
   );
-  const flights = carbonToImpact('flights', 'Flights', flightAnnualKg * annualScale, profile);
   const home = carbonToImpact(
     'home',
     'Home energy',
     HOME_ENERGY[profile.homeEnergy].annualKgCo2e * annualScale,
     profile,
   );
-  const components: Record<LifestyleComponentId, LifestyleImpact> = { diet, driving, flights, home };
+  const components: Record<LifestyleComponentId, LifestyleImpact> = {
+    baseline,
+    diet,
+    driving,
+    flights,
+    home,
+  };
   const kgCo2e = Object.values(components).reduce((total, component) => total + component.kgCo2e, 0);
 
   return {
@@ -114,6 +132,7 @@ export function calculateComparison(
   profile: LifestyleProfile,
 ): ComparisonResult {
   let energyWh: RangeValue = { low: 0, central: 0, high: 0 };
+  let aiEmbodiedCarbonGrams: RangeValue = { low: 0, central: 0, high: 0 };
   const unknownModels: string[] = [];
   const modelBreakdown: ModelEnergyBreakdown[] = [];
   const sourceDays = comparisonDays(aggregate);
@@ -124,20 +143,28 @@ export function calculateComparison(
   for (const modelUsage of aggregate.models) {
     const estimate = energyForModel(modelUsage, windowScale);
     energyWh = sumRange(energyWh, estimate.energyWh);
+    aiEmbodiedCarbonGrams = sumRange(aiEmbodiedCarbonGrams, estimate.embodiedCarbonGrams);
     modelBreakdown.push(estimate);
     if (estimate.fallback) unknownModels.push(modelUsage.model);
   }
 
   const aiMiles = scaleRange(energyWh, profile.model3Efficiency / 1_000);
-  const aiCarbonKgCo2e = scaleRange(
+  const aiElectricityCarbonGrams = scaleRange(
     energyWh,
-    REGIONS[profile.region].gridGramsCo2ePerKwh / 1_000_000,
+    REGIONS[profile.region].gridGramsCo2ePerKwh / 1_000,
+  );
+  const aiCarbonKgCo2e = scaleRange(
+    sumRange(aiElectricityCarbonGrams, aiEmbodiedCarbonGrams),
+    1 / 1_000,
   );
   const lifestyle = calculateLifestyle(days, profile);
-  const ratio = aiMiles.central > 0 ? lifestyle.total.miles / aiMiles.central : Number.POSITIVE_INFINITY;
+  const ratio = aiCarbonKgCo2e.central > 0
+    ? lifestyle.total.kgCo2e / aiCarbonKgCo2e.central
+    : Number.POSITIVE_INFINITY;
 
   return {
     energyWh,
+    aiEmbodiedCarbonGrams,
     aiCarbonKgCo2e,
     aiMiles,
     lifestyle,

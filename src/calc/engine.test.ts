@@ -8,8 +8,8 @@ const profile: LifestyleProfile = {
   diet: 'avg',
   region: 'us',
   homeEnergy: 'med',
-  weeklyDrivingMiles: 230,
-  flightsPerYear: { short: 0, medium: 0, long: 0 },
+  driving: 'davg',
+  flyingFrequency: 'never',
   comparisonWindow: 'csv',
   startCity: 'Austin, TX',
   model3Efficiency: 4,
@@ -26,7 +26,8 @@ describe('comparison engine', () => {
     expect(result.aiMiles.central).toBeCloseTo((result.energyWh.central / 1_000) * 4, 8);
     expect(result.lifestyle.total.miles).toBeGreaterThan(result.aiMiles.central);
     expect(result.lifestyle.components.diet.kgCo2e).toBeCloseTo((2_500 / 365) * 30, 8);
-    expect(result.lifestyle.components.driving.kgCo2e).toBeCloseTo(230 * (30 / 7) * 0.4, 8);
+    expect(result.lifestyle.components.baseline.kgCo2e).toBeCloseTo((3_000 / 365) * 30, 8);
+    expect(result.lifestyle.components.driving.kgCo2e).toBeCloseTo((4_800 / 365) * 30, 8);
     expect(result.lifestyle.components.flights.miles).toBe(0);
     expect(result.lifestyle.components.home.kgCo2e).toBeCloseTo((3_500 / 365) * 30, 8);
     expect(result.unknownModels).toEqual([]);
@@ -43,18 +44,35 @@ describe('comparison engine', () => {
     expect(week.comparisonDays).toBe(7);
     expect(week.windowScale).toBeCloseTo(7 / 30, 10);
     expect(week.energyWh.central).toBeCloseTo(month.energyWh.central * (7 / 30), 10);
-    expect(week.lifestyle.components.driving.kgCo2e).toBeCloseTo(230 * 0.4, 10);
+    expect(week.lifestyle.components.driving.kgCo2e).toBeCloseTo(4_800 * (7 / 365), 10);
   });
 
-  it('adds each annual flight count with the documented short, medium, and long factors', () => {
+  it('uses Masley’s categorical annual flying factor', () => {
     const aggregate = parseUsageCsvText(SYNTHETIC_USAGE_CSV, { synthetic: true });
     const result = calculateComparison(aggregate, {
       ...profile,
       comparisonWindow: 'week',
-      flightsPerYear: { short: 2, medium: 1, long: 1 },
+      flyingFrequency: 'often',
     });
 
-    expect(result.lifestyle.components.flights.kgCo2e).toBeCloseTo((2 * 250 + 1_000 + 1_600) * (7 / 365), 10);
+    expect(result.lifestyle.components.flights.kgCo2e).toBeCloseTo(8_000 * (7 / 365), 10);
+  });
+
+  it('adds grid electricity and embodied hardware carbon exactly', () => {
+    const aggregate = parseUsageCsvText(
+      'timestamp,model,input_tokens,output_tokens,requests\n2026-08-01,gpt-5.5,100,400,1',
+    );
+    const result = calculateComparison(aggregate, profile);
+
+    expect(result.aiEmbodiedCarbonGrams.central).toBeCloseTo(0.0692, 8);
+    expect(result.aiCarbonKgCo2e.central).toBeCloseTo(
+      ((2.6601 / 1_000) * 380 + 0.0692) / 1_000,
+      10,
+    );
+    expect(result.ratio).toBeCloseTo(
+      result.lifestyle.total.kgCo2e / result.aiCarbonKgCo2e.central,
+      10,
+    );
   });
 
   it('surfaces unknown models while still producing a fallback estimate', () => {

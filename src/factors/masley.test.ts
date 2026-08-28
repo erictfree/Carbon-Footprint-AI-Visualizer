@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DRIVING_KG_CO2E_PER_MILE,
+  COUNTRY_DIET,
+  DRIVING,
+  estimateRequestEmbodiedCarbon,
   estimateRequestEnergy,
   FALLBACK_MODEL_ID,
-  FLIGHT_KG_CO2E,
+  FLYING,
   HOME_ENERGY,
   MODEL_CURVES,
+  REGIONS,
   resolveModelCurve,
 } from './masley';
 
@@ -33,6 +36,12 @@ describe('Masley factor interpolation', () => {
     expect(result.central).toBeLessThan(0.3093);
   });
 
+  it('preserves the published embodied-hardware checkpoint', () => {
+    const result = estimateRequestEmbodiedCarbon(MODEL_CURVES['gpt-5.5']!, 400);
+
+    expect(result).toEqual({ low: 0.0692, central: 0.0692, high: 0.0692 });
+  });
+
   it('uses the documented fallback for an unknown model', () => {
     const resolved = resolveModelCurve('future-model-9000');
 
@@ -41,8 +50,29 @@ describe('Masley factor interpolation', () => {
   });
 
   it('locks the Masley and PRD lifestyle conversion factors', () => {
-    expect(DRIVING_KG_CO2E_PER_MILE).toBe(0.4);
+    expect(Object.values(DRIVING).map((driving) => driving.annualKgCo2e)).toEqual([
+      0,
+      1_200,
+      4_800,
+      10_000,
+    ]);
     expect(Object.values(HOME_ENERGY).map((home) => home.annualKgCo2e)).toEqual([1_500, 3_500, 7_000]);
-    expect(Object.values(FLIGHT_KG_CO2E).map((flight) => flight.kgCo2ePerRoundTrip)).toEqual([250, 1_000, 1_600]);
+    expect(Object.values(FLYING).map((flying) => flying.annualKgCo2e)).toEqual([0, 560, 2_300, 8_000]);
+    expect(Object.values(REGIONS).map((region) => region.annualBaselineKgCo2e)).toEqual([
+      3_000,
+      1_800,
+      1_700,
+      2_500,
+      900,
+      1_800,
+    ]);
+    expect(COUNTRY_DIET).toEqual({
+      us: 'avg',
+      eu: 'light',
+      uk: 'avg',
+      cn: 'light',
+      in: 'light',
+      world: 'light',
+    });
   });
 });

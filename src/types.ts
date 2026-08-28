@@ -35,19 +35,18 @@ export interface UsageAggregate {
 export type DietId = 'heavy' | 'avg' | 'light' | 'pesc' | 'veg' | 'vegan';
 export type RegionId = 'us' | 'eu' | 'uk' | 'cn' | 'in' | 'world';
 export type HomeEnergyId = 'apt' | 'med' | 'big';
+export type DrivingId = 'd0' | 'dlo' | 'davg' | 'dhi';
 export type ComparisonWindowId = 'csv' | 'week' | 'month';
-export type FlightLengthId = 'short' | 'medium' | 'long';
-export type LifestyleComponentId = 'diet' | 'driving' | 'flights' | 'home';
+export type FlyingFrequencyId = 'never' | 'rare' | 'some' | 'often';
+export type LifestyleComponentId = 'baseline' | 'diet' | 'driving' | 'flights' | 'home';
 export type LifestyleMetricId = LifestyleComponentId | 'total';
-
-export type FlightCounts = Record<FlightLengthId, number>;
 
 export interface LifestyleProfile {
   diet: DietId;
   region: RegionId;
   homeEnergy: HomeEnergyId;
-  weeklyDrivingMiles: number;
-  flightsPerYear: FlightCounts;
+  driving: DrivingId;
+  flyingFrequency: FlyingFrequencyId;
   comparisonWindow: ComparisonWindowId;
   startCity: string;
   model3Efficiency: number;
@@ -75,10 +74,12 @@ export interface ModelEnergyBreakdown {
   outputTokens: number;
   averageOutputTokens: number;
   energyWh: RangeValue;
+  embodiedCarbonGrams: RangeValue;
 }
 
 export interface ComparisonResult {
   energyWh: RangeValue;
+  aiEmbodiedCarbonGrams: RangeValue;
   aiCarbonKgCo2e: RangeValue;
   aiMiles: RangeValue;
   lifestyle: LifestyleComparison;

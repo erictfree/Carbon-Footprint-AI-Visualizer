@@ -1,9 +1,11 @@
 import './styles.css';
 import { calculateComparison, formatEnergy } from './calc/engine';
 import {
+  COUNTRY_DIET,
   DEFAULT_PROFILE,
   DIETS,
-  FLIGHT_KG_CO2E,
+  DRIVING,
+  FLYING,
   HOME_ENERGY,
   MASLEY_SOURCE,
   MODEL_CURVES,
@@ -27,7 +29,8 @@ import { createStore } from './state/store';
 import type {
   AppState,
   DietId,
-  FlightLengthId,
+  DrivingId,
+  FlyingFrequencyId,
   HomeEnergyId,
   LifestyleImpact,
   LifestyleMetricId,
@@ -47,7 +50,6 @@ const RIGHT_LANE_LEFT_SHIFT_PX = 10;
 
 const initialProfile: LifestyleProfile = {
   ...DEFAULT_PROFILE,
-  flightsPerYear: { ...DEFAULT_PROFILE.flightsPerYear },
   comparisonWindow: 'month',
 };
 const initialAggregate = createGameUsageAggregate(DEFAULT_GAME_SETUP);
@@ -59,6 +61,31 @@ const store = createStore<AppState>({
   status: initialAggregate ? 'ready' : 'booting',
   error: null,
 });
+
+const OUTPUT_TOKEN_SCENARIOS = [
+  [50, 'Tweet · 50 tokens'],
+  [170, 'Short email · 170'],
+  [250, 'Article summary · 250'],
+  [400, 'Chatbot reply · 400'],
+  [5_000, '5-page report · 5,000'],
+  [15_000, 'Long document · 15,000'],
+  [100_000, 'Coding / agent · 100,000'],
+  [500_000, 'Novel-scale · 500,000'],
+] as const;
+
+function modelOptions(selected: string): string {
+  return Object.values(MODEL_CURVES)
+    .map((model) => `<option value="${model.id}"${model.id === selected ? ' selected' : ''}>${model.name}</option>`)
+    .join('');
+}
+
+function outputTokenOptions(selected: number): string {
+  return OUTPUT_TOKEN_SCENARIOS
+    .map(([tokens, label]) => `<option value="${tokens}"${tokens === selected ? ' selected' : ''}>${label}</option>`)
+    .join('');
+}
+
+const defaultAdditionalRows = DEFAULT_GAME_SETUP.additionalRows ?? [];
 
 app.innerHTML = `
   <main class="works-shell" id="works-shell">
@@ -151,7 +178,7 @@ app.innerHTML = `
         </div>
         <img src="${ASSET_BASE}/burger.png" alt="" />
         <div class="game-scoreboard__side game-scoreboard__side--life">
-          <span>Lifestyle · 30-day preview</span><strong id="setup-life-preview">—</strong><small id="setup-life-caption">Diet, home, driving &amp; flights</small>
+          <span>Lifestyle · 30-day preview</span><strong id="setup-life-preview">—</strong><small id="setup-life-caption">Regional baseline, home, driving, diet &amp; flying</small>
         </div>
       </div>
 
@@ -170,41 +197,40 @@ app.innerHTML = `
             <textarea id="prompt-input" rows="4" required>${DEFAULT_GAME_SETUP.prompt}</textarea>
             <small id="prompt-token-estimate">About ${estimatePromptInputTokens(DEFAULT_GAME_SETUP.prompt)} input tokens · shown for context</small>
           </label>
-          <div class="control-grid game-control-grid">
-            <label><span>Model</span><select id="model-select">${Object.values(MODEL_CURVES).map((model) => `<option value="${model.id}"${model.id === DEFAULT_GAME_SETUP.model ? ' selected' : ''}>${model.name}</option>`).join('')}</select></label>
-            <label><span>Answer length</span><select id="output-tokens-select">
-              <option value="50">Quick · 50 tokens</option>
-              <option value="170">Short · 170 tokens</option>
-              <option value="250">Medium · 250 tokens</option>
-              <option value="400" selected>Detailed · 400 tokens</option>
-              <option value="5000">Long · 5,000 tokens</option>
-              <option value="15000">Deep work · 15,000 tokens</option>
-              <option value="100000">Agent run · 100,000 tokens</option>
-              <option value="500000">Max run · 500,000 tokens</option>
-            </select></label>
-            <label class="prompts-field"><span>Prompts per day</span><input id="prompts-per-day" type="number" min="1" max="100000" step="1" value="${DEFAULT_GAME_SETUP.promptsPerDay}" required /></label>
-            <label><span>Grid region</span><select id="region-select">${Object.entries(REGIONS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+          <div class="ai-usage-rows" aria-label="Daily AI usage mix">
+            <div class="ai-usage-row ai-usage-row--head" aria-hidden="true"><span>Model</span><span>Typical output</span><span>Prompts / day</span></div>
+            <div class="ai-usage-row">
+              <label><span class="sr-only">First model</span><select id="model-select">${modelOptions(DEFAULT_GAME_SETUP.model)}</select></label>
+              <label><span class="sr-only">First typical output</span><select id="output-tokens-select">${outputTokenOptions(DEFAULT_GAME_SETUP.outputTokens)}</select></label>
+              <label><span class="sr-only">First prompts per day</span><input id="prompts-per-day" type="number" min="0" max="100000" step="1" value="${DEFAULT_GAME_SETUP.promptsPerDay}" required /></label>
+            </div>
+            <div class="ai-usage-row">
+              <label><span class="sr-only">Second model</span><select id="model-select-2">${modelOptions(defaultAdditionalRows[0]?.model ?? 'claude-sonnet-4-6')}</select></label>
+              <label><span class="sr-only">Second typical output</span><select id="output-tokens-select-2">${outputTokenOptions(defaultAdditionalRows[0]?.outputTokens ?? 400)}</select></label>
+              <label><span class="sr-only">Second prompts per day</span><input id="prompts-per-day-2" type="number" min="0" max="100000" step="1" value="${defaultAdditionalRows[0]?.promptsPerDay ?? 0}" required /></label>
+            </div>
+            <div class="ai-usage-row">
+              <label><span class="sr-only">Third model</span><select id="model-select-3">${modelOptions(defaultAdditionalRows[1]?.model ?? 'gemini-3.5-flash')}</select></label>
+              <label><span class="sr-only">Third typical output</span><select id="output-tokens-select-3">${outputTokenOptions(defaultAdditionalRows[1]?.outputTokens ?? 250)}</select></label>
+              <label><span class="sr-only">Third prompts per day</span><input id="prompts-per-day-3" type="number" min="0" max="100000" step="1" value="${defaultAdditionalRows[1]?.promptsPerDay ?? 0}" required /></label>
+            </div>
           </div>
-          <p class="game-note">Input tokens are counted, but the current Masley source models energy from output tokens.</p>
+          <p class="game-note">Masley estimates each row from its typical output scenario. Your prompt and estimated input tokens are context only.</p>
         </section>
 
         <section class="settings-section game-panel game-panel--life">
           <div class="settings-heading"><span>2 · Your lifestyle</span><button class="link-button" id="reset-profile" type="button">Masley defaults</button></div>
           <div class="control-grid game-control-grid">
+            <label><span>Where you live / AI grid</span><select id="region-select">${Object.entries(REGIONS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
             <label><span>Diet</span><select id="diet-select">${Object.entries(DIETS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
             <label><span>Home energy</span><select id="home-select">${Object.entries(HOME_ENERGY).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Driving</span><select id="driving-select">${Object.entries(DRIVING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Flying</span><select id="flying-select">${Object.entries(FLYING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
           </div>
-          <label class="range-row">
-            <span><span>Weekly gasoline driving</span><output id="driving-output">230 mi</output></span>
-            <input id="driving-range" type="range" min="0" max="600" step="5" value="230" />
-          </label>
-          <fieldset class="flight-row">
-            <legend>Round-trip flights per year</legend>
-            ${Object.entries(FLIGHT_KG_CO2E).map(([id, item]) => `<label><span>${item.label}<small>${item.kgCo2ePerRoundTrip.toLocaleString('en-US')} kg</small></span><input id="flight-${id}" type="number" min="0" max="20" step="1" value="0" inputmode="numeric" /></label>`).join('')}
-          </fieldset>
           <div class="settings-heading opponent-heading"><span>Compare AI against</span><small>Pick the opponent</small></div>
           <div class="impact-picker">
             <button class="impact-choice is-active" data-comparison="total" type="button" aria-pressed="true">Total <strong id="impact-total">—</strong></button>
+            <button class="impact-choice" data-comparison="baseline" type="button" aria-pressed="false">Regional <strong id="impact-baseline">—</strong></button>
             <button class="impact-choice" data-comparison="diet" type="button" aria-pressed="false">Diet <strong id="impact-diet">—</strong></button>
             <button class="impact-choice" data-comparison="driving" type="button" aria-pressed="false">Driving <strong id="impact-driving">—</strong></button>
             <button class="impact-choice" data-comparison="flights" type="button" aria-pressed="false">Flights <strong id="impact-flights">—</strong></button>
@@ -230,11 +256,11 @@ app.innerHTML = `
     <p>Burger Works turns both sides into carbon first, then uses burger production only as a visual yardstick. The numeric kg CO₂e values and uncertainty range are authoritative.</p>
     <dl>
       <div><dt>AI energy</dt><dd>Average output tokens per request → ${MASLEY_SOURCE.modelCount} EcoLogits model curves → requests → Wh range.</dd></div>
-      <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity. Input tokens are displayed but not modeled by the source data.</dd></div>
-      <div><dt>Lifestyle</dt><dd>Diet, gasoline driving, flights, and home energy are normalized to the same comparison window.</dd></div>
+      <div><dt>AI carbon</dt><dd>Estimated Wh × selected grid carbon intensity, plus EcoLogits embodied-hardware carbon for the same model and output scenario.</dd></div>
+      <div><dt>Lifestyle</dt><dd>Masley’s regional goods, services, and shared-infrastructure baseline plus diet, gasoline driving, flying, and home energy, all normalized to the same comparison window.</dd></div>
       <div><dt>Burger unit</dt><dd>1 burger ≈ ${BURGER_KG_CO2E} kg CO₂e. This is a communication equivalence, not a claim that every burger is identical.</dd></div>
       <div><dt>Visual scale</dt><dd>One comparison window enters and clears during the 48.8-second soundtrack. Exact output fills perspective-aware rows—up to three burgers across on desktop—before belt speed rises. A slow marker carries sub-one-burger output; the LED counters accumulate to the authoritative totals.</dd></div>
-      <div><dt>Excluded</dt><dd>Water, training, image generation, retries, and regional goods/services baselines.</dd></div>
+      <div><dt>Excluded</dt><dd>Water, training, image generation, video generation, retries, and non-text AI activity.</dd></div>
     </dl>
     <a class="source-link" href="${MASLEY_SOURCE.url}" target="_blank" rel="noreferrer">Open Masley factor source</a>
     <p class="methodology-version">${MASLEY_SOURCE.version} · Updated ${MASLEY_SOURCE.updated}</p>
@@ -346,18 +372,24 @@ const promptInput = byId<HTMLTextAreaElement>('prompt-input');
 const modelSelect = byId<HTMLSelectElement>('model-select');
 const outputTokensSelect = byId<HTMLSelectElement>('output-tokens-select');
 const promptsPerDayInput = byId<HTMLInputElement>('prompts-per-day');
+const additionalUsageControls = [2, 3].map((index) => ({
+  model: byId<HTMLSelectElement>(`model-select-${index}`),
+  outputTokens: byId<HTMLSelectElement>(`output-tokens-select-${index}`),
+  promptsPerDay: byId<HTMLInputElement>(`prompts-per-day-${index}`),
+}));
 const dietSelect = byId<HTMLSelectElement>('diet-select');
 const homeSelect = byId<HTMLSelectElement>('home-select');
 const regionSelect = byId<HTMLSelectElement>('region-select');
-const drivingRange = byId<HTMLInputElement>('driving-range');
-const flightInputs: Record<FlightLengthId, HTMLInputElement> = {
-  short: byId('flight-short'),
-  medium: byId('flight-medium'),
-  long: byId('flight-long'),
-};
+const drivingSelect = byId<HTMLSelectElement>('driving-select');
+const flyingSelect = byId<HTMLSelectElement>('flying-select');
 
-const GAME_PRESETS: Record<string, { model: string; outputTokens: number; promptsPerDay: number }> = {
-  default: { model: 'gpt-5.5', outputTokens: 400, promptsPerDay: 10 },
+const GAME_PRESETS: Record<string, Omit<Parameters<typeof createGameUsageAggregate>[0], 'prompt'>> = {
+  default: {
+    model: DEFAULT_GAME_SETUP.model,
+    outputTokens: DEFAULT_GAME_SETUP.outputTokens,
+    promptsPerDay: DEFAULT_GAME_SETUP.promptsPerDay,
+    additionalRows: DEFAULT_GAME_SETUP.additionalRows,
+  },
   light: { model: 'gpt-5.4-mini', outputTokens: 170, promptsPerDay: 3 },
   coding: { model: 'claude-sonnet-4-6', outputTokens: 5_000, promptsPerDay: 18 },
   agent: { model: 'gpt-5.5-pro', outputTokens: 100_000, promptsPerDay: 24 },
@@ -420,14 +452,24 @@ function profileFromSetup(): LifestyleProfile {
     diet: dietSelect.value as DietId,
     homeEnergy: homeSelect.value as HomeEnergyId,
     region: regionSelect.value as RegionId,
-    weeklyDrivingMiles: clamp(Math.round(Number(drivingRange.value)), 0, 600),
-    flightsPerYear: {
-      short: clamp(Math.round(Number(flightInputs.short.value)), 0, 20),
-      medium: clamp(Math.round(Number(flightInputs.medium.value)), 0, 20),
-      long: clamp(Math.round(Number(flightInputs.long.value)), 0, 20),
-    },
+    driving: drivingSelect.value as DrivingId,
+    flyingFrequency: flyingSelect.value as FlyingFrequencyId,
     comparisonWindow: 'month',
   };
+}
+
+function setupAggregateFromControls() {
+  return createGameUsageAggregate({
+    prompt: promptInput.value,
+    model: modelSelect.value,
+    outputTokens: Number(outputTokensSelect.value),
+    promptsPerDay: Number(promptsPerDayInput.value),
+    additionalRows: additionalUsageControls.map((row) => ({
+      model: row.model.value,
+      outputTokens: Number(row.outputTokens.value),
+      promptsPerDay: Number(row.promptsPerDay.value),
+    })),
+  });
 }
 
 function syncPromptEstimate(): void {
@@ -444,12 +486,7 @@ function syncLifestylePreview(): void {
 }
 
 function syncRoundPreview(): void {
-  const aggregate = createGameUsageAggregate({
-    prompt: promptInput.value,
-    model: modelSelect.value,
-    outputTokens: Number(outputTokensSelect.value),
-    promptsPerDay: Number(promptsPerDayInput.value),
-  });
+  const aggregate = setupAggregateFromControls();
   const result = calculateComparison(aggregate, profileFromSetup());
   const lifestyle = activeComparison === 'total'
     ? result.lifestyle.total
@@ -464,14 +501,17 @@ function resetSetupControls(): void {
   modelSelect.value = DEFAULT_GAME_SETUP.model;
   outputTokensSelect.value = String(DEFAULT_GAME_SETUP.outputTokens);
   promptsPerDayInput.value = String(DEFAULT_GAME_SETUP.promptsPerDay);
+  additionalUsageControls.forEach((controls, index) => {
+    const row = defaultAdditionalRows[index];
+    controls.model.value = row?.model ?? MODEL_CURVES['gpt-5.5']!.id;
+    controls.outputTokens.value = String(row?.outputTokens ?? 400);
+    controls.promptsPerDay.value = String(row?.promptsPerDay ?? 0);
+  });
   dietSelect.value = DEFAULT_PROFILE.diet;
   homeSelect.value = DEFAULT_PROFILE.homeEnergy;
   regionSelect.value = DEFAULT_PROFILE.region;
-  drivingRange.value = String(DEFAULT_PROFILE.weeklyDrivingMiles);
-  byId<HTMLOutputElement>('driving-output').value = `${DEFAULT_PROFILE.weeklyDrivingMiles} mi`;
-  for (const length of Object.keys(flightInputs) as FlightLengthId[]) {
-    flightInputs[length].value = String(DEFAULT_PROFILE.flightsPerYear[length]);
-  }
+  drivingSelect.value = DEFAULT_PROFILE.driving;
+  flyingSelect.value = DEFAULT_PROFILE.flyingFrequency;
   syncPromptEstimate();
   syncLifestylePreview();
 }
@@ -482,6 +522,14 @@ function applyGamePreset(id: string): void {
   modelSelect.value = preset.model;
   outputTokensSelect.value = String(preset.outputTokens);
   promptsPerDayInput.value = String(preset.promptsPerDay);
+  additionalUsageControls.forEach((controls, index) => {
+    const row = preset.additionalRows?.[index];
+    if (row) {
+      controls.model.value = row.model;
+      controls.outputTokens.value = String(row.outputTokens);
+    }
+    controls.promptsPerDay.value = String(row?.promptsPerDay ?? 0);
+  });
   syncPromptEstimate();
 }
 
@@ -862,11 +910,8 @@ store.subscribe((state) => {
   dietSelect.value = state.profile.diet;
   homeSelect.value = state.profile.homeEnergy;
   regionSelect.value = state.profile.region;
-  drivingRange.value = String(state.profile.weeklyDrivingMiles);
-  byId<HTMLOutputElement>('driving-output').value = `${state.profile.weeklyDrivingMiles} mi`;
-  for (const [length, input] of Object.entries(flightInputs)) {
-    input.value = String(state.profile.flightsPerYear[length as FlightLengthId]);
-  }
+  drivingSelect.value = state.profile.driving;
+  flyingSelect.value = state.profile.flyingFrequency;
 
   if (state.aggregate && state.result) {
     byId('ai-source-meta').textContent = `${state.aggregate.requests.toLocaleString('en-US')} requests · ${Math.round(state.aggregate.outputTokens * state.result.windowScale).toLocaleString('en-US')} output tokens · ${formatEnergy(state.result.energyWh.central)}`;
@@ -887,29 +932,29 @@ promptInput.addEventListener('input', syncPromptEstimate);
 promptsPerDayInput.addEventListener('input', syncPromptEstimate);
 modelSelect.addEventListener('change', syncRoundPreview);
 outputTokensSelect.addEventListener('change', syncRoundPreview);
+additionalUsageControls.forEach((controls) => {
+  controls.promptsPerDay.addEventListener('input', syncRoundPreview);
+  controls.model.addEventListener('change', syncRoundPreview);
+  controls.outputTokens.addEventListener('change', syncRoundPreview);
+});
 document.querySelectorAll<HTMLButtonElement>('[data-game-preset]').forEach((button) => {
   button.addEventListener('click', () => applyGamePreset(button.dataset.gamePreset ?? ''));
 });
 dietSelect.addEventListener('change', syncLifestylePreview);
 homeSelect.addEventListener('change', syncRoundPreview);
-regionSelect.addEventListener('change', syncLifestylePreview);
-drivingRange.addEventListener('input', () => {
-  byId<HTMLOutputElement>('driving-output').value = `${drivingRange.value} mi`;
-  syncRoundPreview();
+regionSelect.addEventListener('change', () => {
+  dietSelect.value = COUNTRY_DIET[regionSelect.value as RegionId];
+  syncLifestylePreview();
 });
-for (const input of Object.values(flightInputs)) input.addEventListener('input', syncRoundPreview);
+drivingSelect.addEventListener('change', syncRoundPreview);
+flyingSelect.addEventListener('change', syncRoundPreview);
 byId('reset-profile').addEventListener('click', resetSetupControls);
 
 setupForm.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!setupForm.reportValidity()) return;
 
-  const aggregate = createGameUsageAggregate({
-    prompt: promptInput.value,
-    model: modelSelect.value,
-    outputTokens: Number(outputTokensSelect.value),
-    promptsPerDay: Number(promptsPerDayInput.value),
-  });
+  const aggregate = setupAggregateFromControls();
   const profile = profileFromSetup();
   store.setState({
     aggregate,

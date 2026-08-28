@@ -3,6 +3,8 @@ import {
   COMPARISON_WINDOWS,
   DEFAULT_PROFILE,
   DIETS,
+  DRIVING,
+  FLYING,
   HOME_ENERGY,
   REGIONS,
 } from '../factors/masley';
@@ -45,12 +47,8 @@ function restoreProfile(profile: Partial<LifestyleProfile>): LifestyleProfile {
     diet: knownKey(DIETS, profile.diet, DEFAULT_PROFILE.diet),
     region: knownKey(REGIONS, profile.region, DEFAULT_PROFILE.region),
     homeEnergy: knownKey(HOME_ENERGY, profile.homeEnergy, DEFAULT_PROFILE.homeEnergy),
-    weeklyDrivingMiles: bounded(profile.weeklyDrivingMiles, DEFAULT_PROFILE.weeklyDrivingMiles, 0, 600),
-    flightsPerYear: {
-      short: bounded(profile.flightsPerYear?.short, 0, 0, 20),
-      medium: bounded(profile.flightsPerYear?.medium, 0, 0, 20),
-      long: bounded(profile.flightsPerYear?.long, 0, 0, 20),
-    },
+    driving: knownKey(DRIVING, profile.driving, DEFAULT_PROFILE.driving),
+    flyingFrequency: knownKey(FLYING, profile.flyingFrequency, DEFAULT_PROFILE.flyingFrequency),
     comparisonWindow: knownKey(
       COMPARISON_WINDOWS,
       profile.comparisonWindow,

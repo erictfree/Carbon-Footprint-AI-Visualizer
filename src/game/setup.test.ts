@@ -3,6 +3,7 @@ import { calculateComparison } from '../calc/engine';
 import { DEFAULT_PROFILE } from '../factors/masley';
 import {
   createGameUsageAggregate,
+  DEFAULT_GAME_SETUP,
   estimatePromptInputTokens,
 } from './setup';
 
@@ -31,7 +32,6 @@ describe('game setup', () => {
 
     const result = calculateComparison(aggregate, {
       ...DEFAULT_PROFILE,
-      flightsPerYear: { ...DEFAULT_PROFILE.flightsPerYear },
       comparisonWindow: 'month',
     });
     expect(result.sourceDays).toBe(1);
@@ -39,5 +39,30 @@ describe('game setup', () => {
     expect(result.windowScale).toBe(30);
     expect(result.aiCarbonKgCo2e.central).toBeGreaterThan(0);
     expect(result.lifestyle.total.kgCo2e).toBeGreaterThan(0);
+  });
+
+  it('matches Masley’s three-row default AI mix', () => {
+    const aggregate = createGameUsageAggregate(DEFAULT_GAME_SETUP);
+    const result = calculateComparison(aggregate, {
+      ...DEFAULT_PROFILE,
+      comparisonWindow: 'month',
+    });
+
+    expect(aggregate.rowCount).toBe(3);
+    expect(aggregate.requests).toBe(27);
+    expect(aggregate.outputTokens).toBe(10_200);
+    expect(aggregate.models.map(({ model, requests, outputTokens }) => ({
+      model,
+      requests,
+      outputTokens,
+    }))).toEqual([
+      { model: 'gpt-5.5', requests: 15, outputTokens: 6_000 },
+      { model: 'claude-sonnet-4-6', requests: 8, outputTokens: 3_200 },
+      { model: 'gemini-3.5-flash', requests: 4, outputTokens: 1_000 },
+    ]);
+    expect(result.energyWh.central).toBeCloseTo(1_537.857, 6);
+    expect(result.aiEmbodiedCarbonGrams.central).toBeCloseTo(41.04, 6);
+    expect(result.aiCarbonKgCo2e.central).toBeCloseTo(0.62542566, 8);
+    expect(result.lifestyle.total.kgCo2e).toBeCloseTo((16_100 / 365) * 30, 8);
   });
 });
