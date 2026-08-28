@@ -13,7 +13,10 @@ const NEAR_CONTACT_Y = 112;
 const FAR_SCALE = 0.1;
 const NEAR_SCALE = 1.18;
 const FAR_LEFT_X = 48.4;
-const NEAR_LEFT_X = 21.6;
+// The photographed AI ramp is less steep than the legacy trajectory. Its
+// foreground center sits farther right, so the burger rays must rotate toward
+// the divider instead of drifting across the outer-left half of the belt.
+const NEAR_LEFT_X = 25.8;
 const FAR_RIGHT_X = 54.75;
 // The arcade background is less asymmetric than Burger Belt 2. Its lifestyle
 // belt still fans right, but the usable surface center finishes several points

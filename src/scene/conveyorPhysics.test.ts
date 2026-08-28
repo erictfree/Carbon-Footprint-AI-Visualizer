@@ -45,7 +45,7 @@ describe('conveyor physics', () => {
 
     expect(nearLeft.topPct).toBeGreaterThan(farLeft.topPct);
     expect(nearLeft.scale).toBeGreaterThan(farLeft.scale);
-    expect(nearLeft.leftPct).toBeCloseTo(21.6, 5);
+    expect(nearLeft.leftPct).toBeCloseTo(25.8, 5);
     expect(nearRight.leftPct).toBeCloseTo(80.35, 5);
   });
 
