@@ -39,18 +39,13 @@ function mix(from: number, to: number, amount: number): number {
   return from + (to - from) * amount;
 }
 
-/**
- * Packed rows need a rear-only center correction for the current arcade
- * photograph, whose center divider is wider at the horizon than Burger Belt 2.
- * The offset is applied by projectBeltPose and naturally fades to zero at the
- * foreground edge.
- */
+/** Packed rows remain on the calibrated belt centerlines at every depth. */
 export function packedRailCenterOffset(
-  side: BeltSide,
+  _side: BeltSide,
   columnCount: number,
 ): number {
   if (columnCount < 3) return 0;
-  return side === 'left' ? -2.4 : 0;
+  return 0;
 }
 
 /**

@@ -106,10 +106,10 @@ describe('conveyor physics', () => {
     expect(frontSlope).toBeCloseTo(rearSlope, 5);
   });
 
-  it('applies a rear rail-safe nudge only when a packed lane requests it', () => {
+  it('does not translate packed rows away from calibrated centerlines', () => {
     expect(packedRailCenterOffset('left', 2)).toBe(0);
     expect(packedRailCenterOffset('right', 2)).toBe(0);
-    expect(packedRailCenterOffset('left', 3)).toBe(-2.4);
+    expect(packedRailCenterOffset('left', 3)).toBe(0);
     expect(packedRailCenterOffset('right', 3)).toBe(0);
 
     const centeredFar = projectBeltPose(0, 'left');
@@ -130,7 +130,7 @@ describe('conveyor physics', () => {
     );
 
     expect(centeredFar.leftPct).toBeCloseTo(49.4, 5);
-    expect(packedFar.leftPct).toBeCloseTo(47, 5);
+    expect(packedFar.leftPct).toBeCloseTo(centeredFar.leftPct, 5);
     expect(packedNear.leftPct).toBeCloseTo(centeredNear.leftPct, 5);
   });
 
