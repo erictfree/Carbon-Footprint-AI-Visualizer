@@ -142,10 +142,10 @@ describe('conveyor physics', () => {
     const nearInner = projectBeltPose(0.8, 'right', -1, 8.5, 0, farScale);
     const nearOuter = projectBeltPose(0.8, 'right', 1, 8.5, 0, farScale);
 
-    expect(farScale).toBe(0.74);
+    expect(farScale).toBe(0.56);
     expect(packedColumnSpreadScale('left', 3)).toBe(1);
     expect(farCenter.leftPct).toBeCloseTo(55.2, 5);
-    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18 * 0.74, 5);
+    expect(farOuter.leftPct - farInner.leftPct).toBeCloseTo(3.18 * 0.56, 5);
     expect(nearOuter.leftPct - nearInner.leftPct).toBeCloseTo(20.7, 5);
   });
 
@@ -156,8 +156,8 @@ describe('conveyor physics', () => {
     const firstGap = offsets[1]! - offsets[0]!;
     const secondGap = offsets[2]! - offsets[1]!;
 
-    expect(offsets).toEqual([-1, -0.24, 0.52]);
-    expect(firstGap).toBeCloseTo(0.76, 5);
+    expect(offsets).toEqual([-1, 0, 1]);
+    expect(firstGap).toBeCloseTo(1, 5);
     expect(secondGap).toBeCloseTo(firstGap, 5);
     expect(columnOffsetForIndex(1, 3, 'left')).toBe(0);
   });

@@ -60,22 +60,21 @@ export function packedColumnSpreadScale(
   side: BeltSide,
   columnCount: number,
 ): number {
-  return side === 'right' && columnCount >= 3 ? 0.74 : 1;
+  return side === 'right' && columnCount >= 3 ? 0.56 : 1;
 }
 
 /**
- * Keeps the lifestyle belt's left column as the photographed anchor while
- * tightening both following gaps by the same factor. Equal offset deltas keep
- * the middle burger exactly halfway between its two neighbors.
+ * Returns evenly spaced column coordinates. Rear-only packing belongs in the
+ * perspective spread calculation so foreground burgers always recover their
+ * full physical width plus the intended air gap.
  */
 export function columnOffsetForIndex(
   index: number,
   columnCount: number,
-  side: BeltSide,
+  _side: BeltSide,
 ): number {
   if (columnCount <= 1) return 0;
   if (columnCount === 2) return index % 2 === 0 ? -0.5 : 0.5;
-  if (side === 'right') return [-1, -0.24, 0.52][index % 3] ?? 0;
   return [-1, 0, 1][index % 3] ?? 0;
 }
 
