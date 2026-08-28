@@ -162,26 +162,57 @@ app.innerHTML = `
     <form id="setup-form">
       <div class="dialog-head game-dialog__head">
         <div>
-          <p>New comparison</p>
-          <h2>Build your carbon face-off.</h2>
-          <span>Choose the two inputs, then watch a full 30-day batch run to the music.</span>
+          <p>New 30-day comparison</p>
+          <h2>Build your burger battle.</h2>
+          <span>Set your lifestyle and AI use, then send both carbon footprints down the belts.</span>
         </div>
         <button class="dialog-close" id="data-close" type="button">Back to factory</button>
       </div>
 
-      <div class="game-scoreboard" aria-label="Round preview">
-        <div class="game-scoreboard__side game-scoreboard__side--ai">
-          <span>AI · 30-day preview</span><strong id="setup-ai-preview">—</strong><small id="setup-ai-caption">Masley / EcoLogits estimate</small>
-        </div>
-        <img src="${ASSET_BASE}/burger.png" alt="" />
-        <div class="game-scoreboard__side game-scoreboard__side--life">
-          <span>Lifestyle · 30-day preview</span><strong id="setup-life-preview">—</strong><small id="setup-life-caption">Regional baseline, home, driving, diet &amp; flying</small>
-        </div>
-      </div>
-
       <div class="game-setup-grid">
-        <section class="settings-section game-panel game-panel--ai">
-          <div class="settings-heading"><span>1 · Your AI use</span><small id="ai-source-meta">Masley defaults loaded</small></div>
+        <section class="settings-section game-panel game-panel--life" aria-labelledby="lifestyle-panel-title">
+          <img class="game-panel__mascot game-panel__mascot--life" src="${ASSET_BASE}/burger.png" alt="" />
+          <div class="game-panel__hero">
+            <div class="settings-heading game-panel__title-row">
+              <span id="lifestyle-panel-title">Your footprint</span>
+              <button class="link-button" id="reset-profile" type="button">Masley defaults</button>
+            </div>
+            <div class="game-panel__score game-panel__score--life" aria-label="Lifestyle 30-day preview">
+              <strong id="setup-life-preview">—</strong>
+              <span>kg CO₂e / 30 days</span>
+              <small id="setup-life-caption">Regional baseline, home, driving, diet &amp; flying</small>
+            </div>
+          </div>
+          <div class="control-grid game-control-grid">
+            <label><span>Where you live / AI grid</span><select id="region-select">${Object.entries(REGIONS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Diet</span><select id="diet-select">${Object.entries(DIETS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Home energy</span><select id="home-select">${Object.entries(HOME_ENERGY).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Driving</span><select id="driving-select">${Object.entries(DRIVING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+            <label><span>Flying</span><select id="flying-select">${Object.entries(FLYING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+          </div>
+          <div class="footprint-breakdown" aria-label="Values included in your total footprint">
+            <span class="footprint-breakdown__heading">Included in your total</span>
+            <div><span>Regional baseline</span><strong id="setup-impact-baseline">—</strong></div>
+            <div><span>Food</span><strong id="setup-impact-diet">—</strong></div>
+            <div><span>Driving</span><strong id="setup-impact-driving">—</strong></div>
+            <div><span>Flights</span><strong id="setup-impact-flights">—</strong></div>
+            <div><span>Home energy</span><strong id="setup-impact-home">—</strong></div>
+          </div>
+        </section>
+
+        <section class="settings-section game-panel game-panel--ai" aria-labelledby="ai-panel-title">
+          <img class="game-panel__mascot game-panel__mascot--ai" src="${ASSET_BASE}/burger.png" alt="" />
+          <div class="game-panel__hero">
+            <div class="settings-heading game-panel__title-row">
+              <span id="ai-panel-title">Your AI use</span>
+              <small id="ai-source-meta">Masley defaults loaded</small>
+            </div>
+            <div class="game-panel__score game-panel__score--ai" aria-label="AI 30-day preview">
+              <strong id="setup-ai-preview">—</strong>
+              <span>kg CO₂e / 30 days</span>
+              <small id="setup-ai-caption">Masley / EcoLogits estimate</small>
+            </div>
+          </div>
           <div class="setup-presets" aria-label="AI usage presets">
             <span>Quick presets</span>
             <button class="setup-preset setup-preset--yellow" type="button" data-game-preset="default">Masley default</button>
@@ -207,18 +238,13 @@ app.innerHTML = `
               <label><span class="sr-only">Third prompts per day</span><input id="prompts-per-day-3" type="number" min="0" max="100000" step="1" value="${defaultAdditionalRows[1]?.promptsPerDay ?? 0}" required /></label>
             </div>
           </div>
-          <p class="game-note">Masley estimates each row from its model, typical output scenario, and prompts per day.</p>
-        </section>
-
-        <section class="settings-section game-panel game-panel--life">
-          <div class="settings-heading"><span>2 · Your lifestyle</span><button class="link-button" id="reset-profile" type="button">Masley defaults</button></div>
-          <div class="control-grid game-control-grid">
-            <label><span>Where you live / AI grid</span><select id="region-select">${Object.entries(REGIONS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-            <label><span>Diet</span><select id="diet-select">${Object.entries(DIETS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-            <label><span>Home energy</span><select id="home-select">${Object.entries(HOME_ENERGY).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-            <label><span>Driving</span><select id="driving-select">${Object.entries(DRIVING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
-            <label><span>Flying</span><select id="flying-select">${Object.entries(FLYING).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('')}</select></label>
+          <div class="ai-mix-summary" aria-label="Thirty-day AI model mix">
+            <span class="ai-mix-summary__heading">What drives this total</span>
+            <div data-ai-mix-summary><span>Model</span><strong>—</strong></div>
+            <div data-ai-mix-summary><span>Model</span><strong>—</strong></div>
+            <div data-ai-mix-summary><span>Model</span><strong>—</strong></div>
           </div>
+          <p class="game-note">Masley estimates each row from its model, typical output scenario, and prompts per day.</p>
         </section>
       </div>
 
@@ -460,6 +486,16 @@ function syncRoundPreview(): void {
   byId('setup-ai-preview').textContent = formatCarbon(result.aiCarbonKgCo2e.central);
   byId('setup-ai-caption').textContent = `${aggregate.requests.toLocaleString('en-US')} prompts / day · ${formatEnergy(result.energyWh.central)}`;
   byId('setup-life-preview').textContent = formatCarbon(result.lifestyle.total.kgCo2e);
+  for (const [id, component] of Object.entries(result.lifestyle.components)) {
+    byId(`setup-impact-${id}`).textContent = formatCarbon(component.kgCo2e);
+  }
+  document.querySelectorAll<HTMLElement>('[data-ai-mix-summary]').forEach((element, index) => {
+    const breakdown = result.modelBreakdown[index];
+    element.hidden = !breakdown;
+    if (!breakdown) return;
+    element.querySelector('span')!.textContent = breakdown.factorModel;
+    element.querySelector('strong')!.textContent = `${breakdown.requests.toLocaleString('en-US')} requests · ${formatEnergy(breakdown.energyWh.central)}`;
+  });
 }
 
 function resetSetupControls(): void {
