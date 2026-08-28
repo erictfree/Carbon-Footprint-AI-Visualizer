@@ -7,12 +7,10 @@ export interface GameUsageRowInputs {
 }
 
 export interface GameSetupInputs extends GameUsageRowInputs {
-  prompt: string;
   additionalRows?: GameUsageRowInputs[];
 }
 
 export const DEFAULT_GAME_SETUP: GameSetupInputs = {
-  prompt: 'Explain how AI energy use compares with everyday carbon emissions.',
   model: 'gpt-5.5',
   outputTokens: 400,
   promptsPerDay: 15,
@@ -22,16 +20,10 @@ export const DEFAULT_GAME_SETUP: GameSetupInputs = {
   ],
 };
 
-export function estimatePromptInputTokens(prompt: string): number {
-  const normalized = prompt.trim().replace(/\s+/g, ' ');
-  return Math.max(1, Math.ceil(normalized.length / 4));
-}
-
 export function createGameUsageAggregate(
   inputs: GameSetupInputs,
   date = new Date(),
 ): UsageAggregate {
-  const inputTokensPerRequest = estimatePromptInputTokens(inputs.prompt);
   const rows = [
     {
       model: inputs.model,
@@ -47,12 +39,11 @@ export function createGameUsageAggregate(
 
   const models = rows.map((row) => ({
     model: row.model,
-    inputTokens: inputTokensPerRequest * row.promptsPerDay,
+    inputTokens: 0,
     outputTokens: row.outputTokens * row.promptsPerDay,
     requests: row.promptsPerDay,
   }));
   const requests = models.reduce((total, row) => total + row.requests, 0);
-  const inputTokens = models.reduce((total, row) => total + row.inputTokens, 0);
   const outputTokens = models.reduce((total, row) => total + row.outputTokens, 0);
 
   return {
@@ -61,7 +52,7 @@ export function createGameUsageAggregate(
     rowCount: models.length,
     start: new Date(date),
     end: new Date(date),
-    inputTokens,
+    inputTokens: 0,
     outputTokens,
     requests,
     models,

@@ -1766,30 +1766,6 @@ input[type="range"] {
   color: rgba(255, 246, 219, 0.76);
 }
 
-.prompt-field {
-  display: grid;
-  gap: 6px;
-  color: #ffefc1;
-  font-size: 10px;
-  font-weight: 760;
-}
-
-.prompt-field textarea {
-  width: 100%;
-  min-height: 96px;
-  resize: vertical;
-  padding: 13px 14px;
-  color: #27170d;
-  border: 3px solid #ffb923;
-  border-radius: 13px;
-  background: #fff9e8;
-  box-shadow: inset 0 2px 0 rgba(80, 30, 5, 0.13), 0 4px 0 #8c2809;
-  font-family: var(--game-font);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.prompt-field small,
 .game-note {
   color: rgba(255, 245, 218, 0.82);
   font-size: 8px;
@@ -1858,8 +1834,7 @@ input[type="range"] {
 }
 
 .game-panel--ai select,
-.game-panel--ai input[type="number"],
-.game-panel--ai textarea {
+.game-panel--ai input[type="number"] {
   border-color: #32d8d5;
   box-shadow: 0 3px 0 #087370;
 }

@@ -14,7 +14,6 @@ import {
 import {
   createGameUsageAggregate,
   DEFAULT_GAME_SETUP,
-  estimatePromptInputTokens,
 } from './game/setup';
 import {
   columnOffsetForIndex,
@@ -192,11 +191,6 @@ app.innerHTML = `
             <button class="setup-preset setup-preset--orange" type="button" data-game-preset="coding">Coding day</button>
             <button class="setup-preset setup-preset--pink" type="button" data-game-preset="agent">Agent marathon</button>
           </div>
-          <label class="prompt-field">
-            <span>Your prompt</span>
-            <textarea id="prompt-input" rows="4" required>${DEFAULT_GAME_SETUP.prompt}</textarea>
-            <small id="prompt-token-estimate">About ${estimatePromptInputTokens(DEFAULT_GAME_SETUP.prompt)} input tokens · shown for context</small>
-          </label>
           <div class="ai-usage-rows" aria-label="Daily AI usage mix">
             <div class="ai-usage-row ai-usage-row--head" aria-hidden="true"><span>Model</span><span>Typical output</span><span>Prompts / day</span></div>
             <div class="ai-usage-row">
@@ -215,7 +209,7 @@ app.innerHTML = `
               <label><span class="sr-only">Third prompts per day</span><input id="prompts-per-day-3" type="number" min="0" max="100000" step="1" value="${defaultAdditionalRows[1]?.promptsPerDay ?? 0}" required /></label>
             </div>
           </div>
-          <p class="game-note">Masley estimates each row from its typical output scenario. Your prompt and estimated input tokens are context only.</p>
+          <p class="game-note">Masley estimates each row from its model, typical output scenario, and prompts per day.</p>
         </section>
 
         <section class="settings-section game-panel game-panel--life">
@@ -368,7 +362,6 @@ const timelineFill = byId('timeline-fill');
 const dataDialog = byId<HTMLDialogElement>('data-dialog');
 const setupForm = byId<HTMLFormElement>('setup-form');
 const methodologyDialog = byId<HTMLDialogElement>('methodology-dialog');
-const promptInput = byId<HTMLTextAreaElement>('prompt-input');
 const modelSelect = byId<HTMLSelectElement>('model-select');
 const outputTokensSelect = byId<HTMLSelectElement>('output-tokens-select');
 const promptsPerDayInput = byId<HTMLInputElement>('prompts-per-day');
@@ -383,7 +376,7 @@ const regionSelect = byId<HTMLSelectElement>('region-select');
 const drivingSelect = byId<HTMLSelectElement>('driving-select');
 const flyingSelect = byId<HTMLSelectElement>('flying-select');
 
-const GAME_PRESETS: Record<string, Omit<Parameters<typeof createGameUsageAggregate>[0], 'prompt'>> = {
+const GAME_PRESETS: Record<string, Parameters<typeof createGameUsageAggregate>[0]> = {
   default: {
     model: DEFAULT_GAME_SETUP.model,
     outputTokens: DEFAULT_GAME_SETUP.outputTokens,
@@ -460,7 +453,6 @@ function profileFromSetup(): LifestyleProfile {
 
 function setupAggregateFromControls() {
   return createGameUsageAggregate({
-    prompt: promptInput.value,
     model: modelSelect.value,
     outputTokens: Number(outputTokensSelect.value),
     promptsPerDay: Number(promptsPerDayInput.value),
@@ -470,12 +462,6 @@ function setupAggregateFromControls() {
       promptsPerDay: Number(row.promptsPerDay.value),
     })),
   });
-}
-
-function syncPromptEstimate(): void {
-  const tokens = estimatePromptInputTokens(promptInput.value);
-  byId('prompt-token-estimate').textContent = `About ${tokens.toLocaleString('en-US')} input tokens · shown for context`;
-  syncRoundPreview();
 }
 
 function syncLifestylePreview(): void {
@@ -497,7 +483,6 @@ function syncRoundPreview(): void {
 }
 
 function resetSetupControls(): void {
-  promptInput.value = DEFAULT_GAME_SETUP.prompt;
   modelSelect.value = DEFAULT_GAME_SETUP.model;
   outputTokensSelect.value = String(DEFAULT_GAME_SETUP.outputTokens);
   promptsPerDayInput.value = String(DEFAULT_GAME_SETUP.promptsPerDay);
@@ -512,7 +497,7 @@ function resetSetupControls(): void {
   regionSelect.value = DEFAULT_PROFILE.region;
   drivingSelect.value = DEFAULT_PROFILE.driving;
   flyingSelect.value = DEFAULT_PROFILE.flyingFrequency;
-  syncPromptEstimate();
+  syncRoundPreview();
   syncLifestylePreview();
 }
 
@@ -530,7 +515,7 @@ function applyGamePreset(id: string): void {
     }
     controls.promptsPerDay.value = String(row?.promptsPerDay ?? 0);
   });
-  syncPromptEstimate();
+  syncRoundPreview();
 }
 
 interface SideData {
@@ -657,7 +642,7 @@ function openSetupDialog(showLastRound = false): void {
       byId('last-round-summary').textContent = `${formatCarbon(sides.left.kgCo2e)} vs ${formatCarbon(sides.right.kgCo2e)}`;
     }
   }
-  syncPromptEstimate();
+  syncRoundPreview();
   syncLifestylePreview();
   if (!dataDialog.open) dataDialog.showModal();
   dataDialog.scrollTop = 0;
@@ -928,8 +913,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-comparison]').forEach((butto
   });
 });
 
-promptInput.addEventListener('input', syncPromptEstimate);
-promptsPerDayInput.addEventListener('input', syncPromptEstimate);
+promptsPerDayInput.addEventListener('input', syncRoundPreview);
 modelSelect.addEventListener('change', syncRoundPreview);
 outputTokensSelect.addEventListener('change', syncRoundPreview);
 additionalUsageControls.forEach((controls) => {
